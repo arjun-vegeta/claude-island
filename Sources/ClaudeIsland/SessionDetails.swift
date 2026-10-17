@@ -103,8 +103,10 @@ final class TranscriptReader {
                       let message = entry["message"] as? [String: Any],
                       let model = message["model"] as? String, model != "<synthetic>",
                       let usage = message["usage"] as? [String: Any] else { continue }
-                let used = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"]
-                    .reduce(0) { $0 + ((usage[$1] as? NSNumber)?.intValue ?? 0) }
+                var used = 0
+                for key in ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"] {
+                    used += (usage[key] as? NSNumber)?.intValue ?? 0
+                }
                 let requested = entry["requestedModel"] as? String ?? model
                 let window = max(Self.window(model: requested), used > 200_000 ? 1_000_000 : 0)
                 return SessionDetails(model: Self.displayName(model), effort: entry["effort"] as? String,
@@ -117,21 +119,28 @@ final class TranscriptReader {
 
     /// "claude-opus-5-5" → "Opus 5.5", "claude-haiku-5-5-20261001" → "Haiku 5.5", "claude-3-5-sonnet-20241022" → "Sonnet 3.5".
     static func displayName(_ id: String) -> String {
-        let parts = id.replacingOccurrences(of: "[1m]", with: "").split(separator: "-").map(String.init)
-            .filter { $0 != "claude" && !($0.count == 8 && Int($0) != nil) }
+        let pieces: [String] = id.replacingOccurrences(of: "[1m]", with: "").split(separator: "-").map(String.init)
+        // Drop "claude" and a trailing date such as 20261001.
+        let parts: [String] = pieces.filter { piece in
+            let isDate = piece.count == 8 && Int(piece) != nil
+            return piece != "claude" && !isDate
+        }
         guard let family = parts.first(where: { $0.first?.isLetter == true }) else { return id }
-        let version = parts.filter { Int($0) != nil }.joined(separator: ".")
-        return family.prefix(1).uppercased() + family.dropFirst() + (version.isEmpty ? "" : " " + version)
+        let version: String = parts.filter { Int($0) != nil }.joined(separator: ".")
+        let name: String = family.prefix(1).uppercased() + String(family.dropFirst())
+        return version.isEmpty ? name : "\(name) \(version)"
     }
 
     /// Context window by model, as Claude Code's docs give it: the [1m] variants and current models
     /// (Fable, Sonnet 5 and later, Haiku 5.5 and later, Opus 4.7 and later) have 1M; older ones 200k.
     static func window(model id: String) -> Int {
         if id.contains("[1m]") { return 1_000_000 }
-        let parts = id.split(separator: "-").map(String.init)
+        let parts: [String] = id.split(separator: "-").map(String.init)
         guard let family = parts.first(where: { $0.first?.isLetter == true && $0 != "claude" }) else { return 200_000 }
-        let numbers = parts.compactMap { $0.count < 8 ? Int($0) : nil }
-        let version = Double(numbers.first ?? 0) + Double(numbers.dropFirst().first ?? 0) / 10
+        let numbers: [Int] = parts.compactMap { $0.count < 8 ? Int($0) : nil }
+        let major = Double(numbers.first ?? 0)
+        let minor = Double(numbers.dropFirst().first ?? 0)
+        let version: Double = major + minor / 10
         switch family {
         case "fable": return 1_000_000
         case "sonnet": return version >= 5 ? 1_000_000 : 200_000
