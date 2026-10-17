@@ -21,6 +21,7 @@ A Dynamic Island for Claude Code on a notched MacBook. Hover over the notch to s
   - Jumps when a session finishes, and waves when one needs you.
   - Crab-walks while sessions move into tmux.
   - The animations live in `Resources/clawd`; `swift scripts/make-sprites.swift` rebuilds them from `assets/clawd`.
+- **Settings** (the gear, bottom left) open in the island itself: pop-ups, sound, Clawd beside the notch, plan usage, whether Reorganise opens windows, desktop-switching permission, open at login, checking usage now, and Quit. Esc or Done goes back, and the island always reopens on the sessions.
 - **New chat:** opens a new Terminal window on the current desktop, running Claude Code in your home folder, inside tmux. If that desktop has one Terminal window, the new one takes the free half.
 
 ## Reorganise
@@ -93,7 +94,7 @@ Everything comes from the `claude` binary and tools on this Mac:
 open ~/Applications/Claude\ Island.app
 ```
 
-Turn on "Open at login" from the ⋯ menu in the island.
+Turn on "Open at login" in the island's settings (the gear, bottom left).
 
 Command-line checks:
 

@@ -124,7 +124,7 @@ struct IslandRootView: View {
     /// face right, so on the notch's left side they're mirrored to face away from it. Dancing and
     /// waving slide out from behind the notch and back.
     @ViewBuilder private var lurker: some View {
-        if controller.mode == .collapsed && !controller.lurkHidden {
+        if controller.mode == .collapsed && !controller.lurkHidden && settings.showClawd {
             let notch = controller.geometry.notchHeight
             let act = controller.lurkAct
             let size = controller.lurkerSize(act)
@@ -169,56 +169,68 @@ struct ExpandedView: View {
         VStack(spacing: 0) {
             header(list)
 
-            UsageStrip(usage: usage)
-                .frame(height: IslandLayout.usageHeight + (usage.isStale ? IslandLayout.staleLine : 0))
-
-            if let problem = sessions.terminalProblem {
-                Text(problem)
-                    .font(islandFont(11))
-                    .foregroundStyle(Color.clay)
-                    .lineLimit(2)
-                    .padding(.horizontal, 20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: IslandLayout.bannerHeight)
-            }
-
-            if !controller.query.isEmpty {
-                SearchLine(query: controller.query, matches: controller.groups.all.count)
-                    .frame(height: IslandLayout.searchHeight)
-            }
-
-            Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
-
-            if list.isEmpty || controller.groups.isEmpty {
-                VStack(spacing: 8) {
-                    ClawdView(name: list.isEmpty ? "cloud-still" : "cloud", height: 38)
-                    Text(list.isEmpty ? "No Claude Code sessions" : "No sessions match \u{201C}\(controller.query)\u{201D}")
-                        .font(islandFont(12))
-                        .foregroundStyle(Color.ink2)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .padding(.horizontal, 20)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: controller.listHeight - 1)
+            if controller.showingSettings {
+                SettingsPage(controller: controller, usage: usage, settings: settings)
+                    .frame(height: controller.settingsPageHeight, alignment: .top)
+                Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
+                footer.frame(height: IslandLayout.footerHeight - 1)
             } else {
-                sessionList(controller.groups).frame(height: controller.listHeight - 1)
+                sessionsPage(list)
             }
+        }
+    }
 
-            if let note = controller.note {
-                Text(note)
-                    .font(islandFont(11))
+    @ViewBuilder private func sessionsPage(_ list: [ClaudeSession]) -> some View {
+        if settings.showUsage {
+            UsageStrip(usage: usage).frame(height: controller.usageHeight)
+        }
+
+        if let problem = sessions.terminalProblem {
+            Text(problem)
+                .font(islandFont(11))
+                .foregroundStyle(Color.clay)
+                .lineLimit(2)
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: IslandLayout.bannerHeight)
+        }
+
+        if !controller.query.isEmpty {
+            SearchLine(query: controller.query, matches: controller.groups.all.count)
+                .frame(height: IslandLayout.searchHeight)
+        }
+
+        Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
+
+        if list.isEmpty || controller.groups.isEmpty {
+            VStack(spacing: 8) {
+                ClawdView(name: list.isEmpty ? "cloud-still" : "cloud", height: 38)
+                Text(list.isEmpty ? "No Claude Code sessions" : "No sessions match \u{201C}\(controller.query)\u{201D}")
+                    .font(islandFont(12))
                     .foregroundStyle(Color.ink2)
                     .lineLimit(1)
-                    .truncationMode(.tail)
+                    .truncationMode(.middle)
                     .padding(.horizontal, 20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: IslandLayout.noteHeight)
             }
-
-            Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
-            footer.frame(height: IslandLayout.footerHeight - 1)
+            .frame(maxWidth: .infinity)
+            .frame(height: controller.listHeight - 1)
+        } else {
+            sessionList(controller.groups).frame(height: controller.listHeight - 1)
         }
+
+        if let note = controller.note {
+            Text(note)
+                .font(islandFont(11))
+                .foregroundStyle(Color.ink2)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: IslandLayout.noteHeight)
+        }
+
+        Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
+        footer.frame(height: IslandLayout.footerHeight - 1)
     }
 
     /// The row beside the notch: Clawd at his laptop on the left, working and done counts on the right.
@@ -334,7 +346,19 @@ struct ExpandedView: View {
 
     @ViewBuilder private var footer: some View {
         let movable = controller.movableSessions.count
-        if controller.confirmingMove {
+        if controller.showingSettings {
+            HStack(spacing: 8) {
+                Button("Quit Claude Island") { NSApp.terminate(nil) }
+                    .buttonStyle(LinkStyle(hovered: controller.hovered == "quit"))
+                    .hoverTarget("quit")
+                Spacer(minLength: 4)
+                Text("Esc to go back").font(islandFont(11)).foregroundStyle(Color.ink3)
+                Button("Done") { controller.showingSettings = false }
+                    .buttonStyle(PillStyle(filled: true, hovered: controller.hovered == "done"))
+                    .hoverTarget("done")
+            }
+            .padding(.horizontal, 18)
+        } else if controller.confirmingMove {
             HStack(spacing: 8) {
                 Text("Restart \(movable) idle session\(movable == 1 ? "" : "s") inside tmux? Chats are kept; anything they run in the background stops.")
                     .font(islandFont(11))
@@ -351,25 +375,17 @@ struct ExpandedView: View {
             .padding(.horizontal, 18)
         } else {
             HStack(spacing: 8) {
-                Menu {
-                    Toggle("Pop up when a session finishes", isOn: $settings.popUpOnEvents)
-                    Toggle("Sound", isOn: $settings.playSound)
-                    Toggle("Open at login", isOn: Binding(get: { settings.openAtLogin }, set: { settings.openAtLogin = $0 }))
-                    Divider()
-                    Button("Refresh usage") { usage.refresh() }
-                    Button("Quit Claude Island") { NSApp.terminate(nil) }
-                } label: {
-                    Image(systemName: "ellipsis")
+                Button { controller.showingSettings = true } label: {
+                    Image(systemName: "gearshape")
                         .font(islandFont(13))
                         .foregroundStyle(Color.ink1)
                         .frame(width: 28, height: 28)
-                        .background(Circle().fill(Color.ivory.opacity(controller.hovered == "menu" ? 0.13 : 0.08)))
-                        .animation(.easeOut(duration: 0.1), value: controller.hovered == "menu")
+                        .background(Circle().fill(Color.ivory.opacity(controller.hovered == "settings" ? 0.13 : 0.08)))
+                        .animation(.easeOut(duration: 0.1), value: controller.hovered == "settings")
                 }
-                .menuStyle(.borderlessButton)
-                .hoverTarget("menu")
-                .menuIndicator(.hidden)
-                .fixedSize()
+                .buttonStyle(CardPress())
+                .hoverTarget("settings")
+                .help("Settings")
 
                 if movable > 0 {
                     Button { controller.confirmingMove = true } label: {
@@ -655,7 +671,7 @@ struct WorkingCard: View {
     }
 }
 
-private struct CardPress: ButtonStyle {
+struct CardPress: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1)

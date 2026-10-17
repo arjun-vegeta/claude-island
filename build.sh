@@ -10,6 +10,10 @@ swift build -c release
 rm -rf "build/$APP"
 mkdir -p "build/$APP/Contents/MacOS" "build/$APP/Contents/Resources"
 cp .build/release/ClaudeIsland "build/$APP/Contents/MacOS/ClaudeIsland"
+# SwiftPM records the deployment target (14.0) as the SDK the app was built with, so macOS draws it
+# with the old controls. Record the real SDK, so switches and the like get the current (Liquid Glass) look.
+vtool -set-build-version macos 14.0 "$(xcrun --show-sdk-version)" -replace \
+    -output "build/$APP/Contents/MacOS/ClaudeIsland" "build/$APP/Contents/MacOS/ClaudeIsland"
 [[ build/AppIcon.icns -nt scripts/make-icon.swift ]] || swift scripts/make-icon.swift build
 cp build/AppIcon.icns "build/$APP/Contents/Resources/AppIcon.icns"
 cp -R Resources/clawd "build/$APP/Contents/Resources/clawd"
