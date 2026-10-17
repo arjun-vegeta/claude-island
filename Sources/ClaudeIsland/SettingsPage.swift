@@ -25,12 +25,17 @@ struct SettingsPage: View {
                            help: "Your 5-hour and weekly limits at the top of the island")
                 }
                 section("Reorganise") {
-                    toggle("windows", "Open windows for every chat", $settings.reorganiseOpensWindows,
-                           help: "Chats without a window get one, two per desktop, on empty desktops if needed")
-                    action("access", "Desktop switching", value: access.allowed ? "Allowed" : "Allow…",
-                           highlight: !access.allowed,
-                           help: "Reorganise presses Ctrl+→ to reach empty desktops, which needs Accessibility") {
-                        access.ask()
+                    VStack(spacing: IslandLayout.settingsRowGap) {
+                        layoutPicker
+                        HStack(spacing: 8) {
+                            toggle("windows", "Open windows for every chat", $settings.reorganiseOpensWindows,
+                                   help: "Chats without a window get one, filling each desktop's layout, on empty desktops if needed")
+                            action("access", "Desktop switching", value: access.allowed ? "Allowed" : "Allow…",
+                                   highlight: !access.allowed,
+                                   help: "Reorganise presses Ctrl+→ to reach empty desktops, which needs Accessibility") {
+                                access.ask()
+                            }
+                        }
                     }
                 }
                 section("General") {
@@ -46,6 +51,41 @@ struct SettingsPage: View {
             .padding(.bottom, IslandLayout.listBottom)
         }
         .onAppear { access.check() }
+    }
+
+    /// How many windows Reorganise tiles on each desktop: 2 side by side, 4 in a 2 × 2 grid, 6 in 2 rows of 3.
+    private var layoutPicker: some View {
+        row("Windows per desktop", hovered: false) {
+            Text(layoutName(settings.windowsPerDesktop))
+                .font(islandFont(11))
+                .foregroundStyle(Color.ink3)
+            Picker("Windows per desktop", selection: $settings.windowsPerDesktop) {
+                ForEach(Settings.layouts, id: \.self) { n in
+                    Image(systemName: layoutSymbol(n)).help(layoutName(n)).tag(n)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .environment(\.controlActiveState, .key)
+        }
+        .help("How Reorganise and New chat lay out Terminal windows on each desktop")
+    }
+
+    private func layoutName(_ n: Int) -> String {
+        switch n {
+        case 4: return "4 · 2 × 2"
+        case 6: return "6 · 2 rows of 3"
+        default: return "2 · side by side"
+        }
+    }
+
+    private func layoutSymbol(_ n: Int) -> String {
+        switch n {
+        case 4: return "rectangle.split.2x2"
+        case 6: return "rectangle.grid.3x2"
+        default: return "rectangle.split.2x1"
+        }
     }
 
     private func checked(_ now: Date) -> String {

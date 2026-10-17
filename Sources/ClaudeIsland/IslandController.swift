@@ -32,9 +32,13 @@ enum IslandLayout {
     /// The settings page: four sections of two-column rows.
     static let settingsRow: CGFloat = 34
     static let settingsSections = 4
-    static let settingsRows = 4
+    static let settingsRows = 5
+    /// Between two rows of the same section (Reorganise has two).
+    static let settingsRowGap: CGFloat = 6
+    static let settingsRowGaps = 1
     static var settingsHeight: CGFloat {
-        CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow + listBottom + 1
+        CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow
+            + CGFloat(settingsRowGaps) * settingsRowGap + listBottom + 1
     }
 }
 
@@ -661,11 +665,12 @@ final class IslandController: NSObject, ObservableObject {
 
     func newChat() {
         let screens = ScreenInfo.all()
+        let capacity = settings.windowsPerDesktop
         collapse()
         comeOut(.racing)
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                try Reorganizer.openNewChat(screens: screens)
+                try Reorganizer.openNewChat(screens: screens, capacity: capacity)
             } catch {
                 DispatchQueue.main.async { self.show(note: "Couldn't open a new chat: \(error.localizedDescription)") }
             }
@@ -684,14 +689,15 @@ final class IslandController: NSObject, ObservableObject {
         let list = sessions.sessions
         let screens = ScreenInfo.all()
         let opensWindows = settings.reorganiseOpensWindows
+        let capacity = settings.windowsPerDesktop
         show(note: "Reorganising…")
         DispatchQueue.global(qos: .userInitiated).async {
             var message: String
             var switched = 0
             do {
-                let spread = opensWindows ? try Reorganizer.spreadOut(screens: screens) : (opened: 0, note: nil)
-                let paired = try Reorganizer.pairUp(screens: screens)
-                (message, switched) = try Reorganizer.execute(Reorganizer.plan(sessions: list, screens: screens))
+                let spread = opensWindows ? try Reorganizer.spreadOut(screens: screens, capacity: capacity) : (opened: 0, note: nil)
+                let paired = try Reorganizer.pairUp(screens: screens, capacity: capacity)
+                (message, switched) = try Reorganizer.execute(Reorganizer.plan(sessions: list, screens: screens, capacity: capacity))
                 if paired > 0 { message = "Paired up \(paired) window\(paired == 1 ? "" : "s") · " + message }
                 if spread.opened > 0 { message = "Opened \(spread.opened) window\(spread.opened == 1 ? "" : "s") · " + message }
                 if let note = spread.note { message += " · " + note }

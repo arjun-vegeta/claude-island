@@ -22,22 +22,22 @@ A Dynamic Island for Claude Code on a notched MacBook. Hover over the notch to s
   - Crab-walks while sessions move into tmux.
   - The animations live in `Resources/clawd`; `swift scripts/make-sprites.swift` rebuilds them from `assets/clawd`.
 - **Settings** (the gear, bottom left) open in the island itself: pop-ups, sound, Clawd beside the notch, plan usage, whether Reorganise opens windows, desktop-switching permission, open at login, checking usage now, and Quit. Esc or Done goes back, and the island always reopens on the sessions.
-- **New chat:** opens a new Terminal window on the current desktop, running Claude Code in your home folder, inside tmux. If that desktop has one Terminal window, the new one takes the free half.
+- **New chat:** opens a new Terminal window on the current desktop, running Claude Code in your home folder, inside tmux. If that desktop has room in its layout, the new window takes the next free slot.
 
 ## Reorganise
 
-Each Claude session runs inside its own tmux session, and each Terminal window shows one of them. First, Reorganise makes sure every chat has a window, two to a desktop:
+Each Claude session runs inside its own tmux session, and each Terminal window shows one of them. Settings › Windows per desktop picks the layout: 2 side by side (the default), 4 in a 2 × 2 grid, or 6 in 2 rows of 3. First, Reorganise makes sure every chat has a window, filling each desktop's layout:
 
-- A chat with no window gets one, and a desktop with more than two windows gives up the extras.
-- They go beside a desktop's single window first, then onto empty desktops (ones with no app windows at all), two each. It walks to an empty desktop by pressing Ctrl+→, so it needs Claude Island allowed under Accessibility; macOS asks the first time. If there aren't enough empty desktops, it says how many to add in Mission Control.
+- A chat with no window gets one, and a desktop with more windows than its layout gives up the extras.
+- They go onto desktops with room first, then onto empty desktops (ones with no app windows at all). It walks to an empty desktop by pressing Ctrl+→, so it needs Claude Island allowed under Accessibility; macOS asks the first time. If there aren't enough empty desktops, it says how many to add in Mission Control.
 - You're taken back to the desktop you started on.
 
 Then it changes which session each window shows:
 
-- Running sessions (and ones waiting on you) go to the first desktops that hold two windows, left and right.
+- Running sessions (and ones waiting on you) go to the first desktops that hold at least two windows.
 - With an odd number of running sessions, one desktop gets one running and one idle.
 - Sessions that finished since you last looked come next, then idle ones.
-- Windows are snapped to the left and right halves of the screen.
+- Windows are tiled to the layout: left and right halves, a 2 × 2 grid, or 2 rows of 3.
 
 When every chat already has a window, it's instant: nothing slides, and the mouse is never touched.
 

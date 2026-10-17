@@ -22,7 +22,7 @@ enum CLI {
             DistributedNotificationCenter.default().postNotificationName(IslandController.demoNotification, object: args.dropFirst().first,
                                                                          userInfo: nil, deliverImmediately: true)
         case "new-chat":
-            do { try Reorganizer.openNewChat(screens: ScreenInfo.all()) } catch { print("error: \(error.localizedDescription)") }
+            do { try Reorganizer.openNewChat(screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop) } catch { print("error: \(error.localizedDescription)") }
         default: print("commands: list | usage | plan | reorganise | move-to-tmux <pid> | new-chat | demo [dance|wave|race]")
         }
     }
@@ -61,15 +61,15 @@ enum CLI {
     private static func reorganise(execute: Bool) {
         let store = loadedStore()
         do {
-            let plan = try Reorganizer.plan(sessions: store.sessions, screens: ScreenInfo.all())
+            let plan = try Reorganizer.plan(sessions: store.sessions, screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop)
             print(plan.description)
             print("\(plan.changes.count) window(s) would switch session")
             if execute {
-                let spread = try Reorganizer.spreadOut(screens: ScreenInfo.all())
+                let spread = try Reorganizer.spreadOut(screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop)
                 print("opened \(spread.opened) window(s)" + (spread.note.map { " · " + $0 } ?? ""))
-                let paired = try Reorganizer.pairUp(screens: ScreenInfo.all())
+                let paired = try Reorganizer.pairUp(screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop)
                 print("paired up \(paired) window(s)")
-                let fresh = try Reorganizer.plan(sessions: loadedStore().sessions, screens: ScreenInfo.all())
+                let fresh = try Reorganizer.plan(sessions: loadedStore().sessions, screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop)
                 print(try Reorganizer.execute(fresh).message)
             }
         } catch {
