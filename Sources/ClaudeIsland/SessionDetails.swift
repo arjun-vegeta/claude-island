@@ -41,7 +41,9 @@ final class TranscriptReader {
         let details: SessionDetails?
     }
 
-    private let projects = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects")
+    /// CLAUDE_ISLAND_PROJECTS_DIR points it at a test folder instead (scripts/demo.sh).
+    private let projects = ProcessInfo.processInfo.environment["CLAUDE_ISLAND_PROJECTS_DIR"].map { URL(fileURLWithPath: $0) }
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects")
     private var paths: [String: URL] = [:]
     private var cache: [String: Cached] = [:]
 

@@ -35,7 +35,27 @@ final class UsageStore: ObservableObject {
     /// The numbers shown are from an earlier check, because the latest one failed.
     var isStale: Bool { snapshot != nil && (error != nil || offline) }
 
+    /// For screen recordings (scripts/demo.sh): CLAUDE_ISLAND_DEMO_USAGE="54,78,31" shows those
+    /// percentages, with the labels of the last real check, and never asks claude.
+    private static let demoPercents: [Double]? = ProcessInfo.processInfo.environment["CLAUDE_ISLAND_DEMO_USAGE"]
+        .map { $0.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) } }
+
+    private static func demoSnapshot(_ percents: [Double]) -> UsageSnapshot {
+        let saved = (try? Data(contentsOf: saved)).flatMap { try? JSONDecoder().decode(UsageSnapshot.self, from: $0) }
+        let labels = saved?.windows.map { ($0.id, $0.label) } ?? [("five_hour", "Session"), ("seven_day", "Week"), ("model", "Week · Opus")]
+        let resets: [TimeInterval] = [2 * 3600 + 13 * 60, 3 * 86400 + 5 * 3600, 3 * 86400 + 5 * 3600]
+        let windows = zip(labels, percents).enumerated().map { i, pair in
+            UsageWindow(id: pair.0.0, label: pair.0.1, percent: pair.1, resetsAt: Date().addingTimeInterval(resets[min(i, resets.count - 1)]))
+        }
+        return UsageSnapshot(windows: windows, extraUsed: nil, extraLimit: nil, currency: saved?.currency ?? "USD",
+                             plan: saved?.plan, fetchedAt: Date())
+    }
+
     func start() {
+        if let percents = Self.demoPercents {
+            snapshot = Self.demoSnapshot(percents)
+            return
+        }
         if let data = try? Data(contentsOf: Self.saved) { snapshot = try? JSONDecoder().decode(UsageSnapshot.self, from: data) }
         network.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
@@ -56,6 +76,7 @@ final class UsageStore: ObservableObject {
     }
 
     func refresh() {
+        if let percents = Self.demoPercents { snapshot = Self.demoSnapshot(percents); return }
         guard !loading else { return }
         loading = true
         DispatchQueue.global(qos: .utility).async {
