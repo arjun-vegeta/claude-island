@@ -2,7 +2,10 @@
 # Starts Claude Code inside Claude Island's tmux server, in this Terminal window.
 # Arguments go straight to claude, e.g. `claude-tmux --resume Q_AUTO`.
 here=${0:A:h}
-tmux=${commands[tmux]:-/opt/homebrew/bin/tmux}
+# Homebrew's tmux if installed, otherwise the one that ships with the app.
+for tmux in /opt/homebrew/bin/tmux /usr/local/bin/tmux $here/bin/tmux ${commands[tmux]:-}; do
+  [[ -x $tmux ]] && break
+done
 
 # tmux starts panes with the server's environment, so hand this shell's environment over.
 envfile=$(mktemp -t claude-island-env) || exit 1

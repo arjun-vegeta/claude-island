@@ -8,6 +8,7 @@ struct SettingsPage: View {
     @ObservedObject var settings: Settings
     /// Re-read when the page opens, so a permission granted in System Settings shows up.
     @StateObject private var access = AccessCheck()
+    @StateObject private var hook = HookCheck()
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -37,8 +38,13 @@ struct SettingsPage: View {
                     }
                 }
                 group("General") {
+                    action("terminal", "Terminal setup", value: hook.hooked ? "Done" : "Set up", highlight: !hook.hooked, first: true,
+                           help: hook.hooked ? "Typing claude in Terminal starts it inside Claude Island"
+                                             : "Adds one line to ~/.zshrc so typing claude in Terminal starts it inside Claude Island") {
+                        hook.setUp()
+                    }
                     toggle("login", "Open at login", Binding(get: { settings.openAtLogin }, set: { settings.openAtLogin = $0 }),
-                           first: true, help: "Start Claude Island when you log in")
+                           help: "Start Claude Island when you log in")
                     action("refresh", "Check plan usage", value: usage.loading ? "Checking…" : checked(context.date),
                            highlight: false, help: "Check your plan usage now") {
                         usage.refresh()
@@ -48,7 +54,7 @@ struct SettingsPage: View {
             .padding(.horizontal, 16)
             .padding(.bottom, IslandLayout.listBottom)
         }
-        .onAppear { access.check() }
+        .onAppear { access.check(); hook.check() }
     }
 
     /// How many windows Reorganise tiles on each desktop: 2 side by side, 4 in a 2 × 2 grid, 6 in 2 rows of 3.
@@ -188,6 +194,18 @@ private struct LayoutSegments: NSViewRepresentable {
             guard parent.options.indices.contains(control.selectedSegment) else { return }
             parent.selection = parent.options[control.selectedSegment].value
         }
+    }
+}
+
+/// Whether ~/.zshrc runs `claude` through Claude Island, for the "Terminal setup" row.
+private final class HookCheck: ObservableObject {
+    @Published private(set) var hooked = ShellSupport.isHooked
+
+    func check() { hooked = ShellSupport.isHooked }
+
+    func setUp() {
+        try? ShellSupport.hook()
+        check()
     }
 }
 

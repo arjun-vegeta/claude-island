@@ -7,11 +7,14 @@ import Foundation
 enum Tmux {
     static let socket = "claude-island"
 
-    static let binary: String? = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]
+    /// Homebrew's tmux when there is one (so it matches a server it already started), otherwise the copy
+    /// the app ships with.
+    static let binary: String? = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux",
+                                  ShellSupport.home.appendingPathComponent("bin/tmux").path, "/usr/bin/tmux"]
         .first { FileManager.default.isExecutableFile(atPath: $0) }
 
-    /// The launcher script that starts claude inside this server (shell/claude-tmux next to the app's source).
-    static let launcher = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("claude-island/shell/claude-tmux").path
+    /// The launcher script that starts claude inside this server (installed from the app, see ShellSupport).
+    static let launcher = ShellSupport.home.appendingPathComponent("claude-tmux").path
 
     struct Pane {
         let tty: String
@@ -28,7 +31,7 @@ enum Tmux {
     }
 
     /// Sits between a Terminal window and tmux so dragged-in screenshots work (shell/relay.c).
-    static let relay = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("claude-island/shell/relay/tmux").path
+    static let relay = ShellSupport.home.appendingPathComponent("relay/tmux").path
 
     /// nil when tmux is missing or the server isn't running.
     @discardableResult

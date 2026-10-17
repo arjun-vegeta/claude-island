@@ -1,112 +1,85 @@
 # Claude Island
 
-A Dynamic Island for Claude Code on a notched MacBook. Hover over the notch to see every Claude Code session, your plan usage, and a button that puts running sessions first, two per desktop.
+A Dynamic Island for Claude Code on a MacBook with a notch. Hover over the notch to see all your Claude Code chats, how much of your plan you've used, and buttons to tidy up your Terminal windows.
 
-## What it shows
+## What you get
 
-- **Sessions**, grouped into three sections, each shown only when it has sessions:
-  - **Working:** sessions Claude is busy in, as cards with Claude Code's spinning ✻. One that's waiting on you gets a clay border and "Needs your permission".
-  - **Done:** finished but not opened yet, with a check (or a waving Clawd right after its pop-up). They stay here, however long ago they finished, until you open them.
-  - **Recent:** finished within the last 6 hours and already seen: the ones you're in the middle of.
-  - **Idle:** untouched for more than 6 hours, as slim rows with how long it's been.
-- **Model, effort and context** under each chat's name, for example "Opus 5.5 · high · 38% of 1M", from the chat's latest reply. Claude Code records the model, effort and token counts with every reply in the chat's transcript (`~/.claude/projects/…/<session id>.jsonl`); the island reads the end of it when it changes. The context window is 1M for current models and 200k for older ones, as Claude Code's docs give it. Right after `/compact` the percentage is left out until the next reply. Turn it off in Settings.
-- **Type to search** while the island is open: sessions narrow to those whose name or folder matches. Enter opens the selected one (the top match unless you've moved the selection), arrows move the selection, Esc clears the search, then closes the island. Typing goes back to Terminal when the island closes.
-- **Click a session** to jump to its window. A session with no window open ("hidden") gets a new window.
-- **Usage:** your 5-hour and weekly limits, with reset times. Same numbers as `/usage`.
-- **Pop-up when something finishes:** the notch opens briefly with "✓ <session> finished · took 4m", plus a chime. It does the same when a session needs your input. Click the pop-up to go there.
-- **Clawd:**
-  - Lurks beside the notch while the island is closed. Between loops he sometimes walks behind the notch to the other side, and now and then slides out to dance or wave.
-  - Drives his racing car right of the notch when you press New chat.
-  - Waves in place of a session's blue dot after its "finished" pop-up, until you click that session or close the island.
-  - Types on his laptop in the top-left corner when it's open, and dances there after a Reorganise.
-  - Jumps when a session finishes, and waves when one needs you.
-  - Crab-walks while sessions move into tmux.
-  - The animations live in `Resources/clawd`; `swift scripts/make-sprites.swift` rebuilds them from `assets/clawd`.
-- **Settings** (the gear, bottom left) open in the island itself: pop-ups, sound, Clawd beside the notch, plan usage, whether Reorganise opens windows, desktop-switching permission, open at login, checking usage now, and Quit. Esc or Done goes back, and the island always reopens on the sessions.
-- **New chat:** opens a new Terminal window on the current desktop, running Claude Code in your home folder, inside tmux. If that desktop has room in its layout, the new window takes the next free slot.
+- **Every chat at a glance**, grouped into Working, Done, Recent and Idle. Click one to jump to its window.
+- **Model, effort and context** under each chat, for example "Opus 5.5 · high · 38% of 1M".
+- **Your plan usage**: the 5-hour and weekly limits, the same numbers as `/usage`. It shows the last known numbers when you're offline.
+- **A pop-up and a chime** when a chat finishes or needs you.
+- **Reorganise**: running chats first, laid out 2, 4 or 6 to a desktop. Chats without a window get one.
+- **New chat**: a new Terminal window with Claude Code, placed in the next free spot.
+- **Type to search** while the island is open. Press Enter to open the top match, or Esc to clear the search.
+- **Clawd**, the Claude Code mascot, hangs around the notch.
+- **Settings**: click the gear at the bottom left.
 
-## Reorganise
+It needs no account or login. Everything comes from Claude Code itself on your Mac.
 
-Each Claude session runs inside its own tmux session, and each Terminal window shows one of them. Settings › Windows per desktop picks the layout: 2 side by side (the default), 4 in a 2 × 2 grid, or 6 in 2 rows of 3. First, Reorganise makes sure every chat has a window, filling each desktop's layout:
+## Install
 
-- A desktop with more windows than its layout gives up the extras, for example after switching from 4 per desktop to 2. A chat with no window gets one too, unless Settings › Open windows for chats without one is off.
-- They go onto desktops with room first, then onto empty desktops (ones with no app windows at all). It walks to an empty desktop by pressing Ctrl+→, so it needs Claude Island allowed under Accessibility; macOS asks the first time. If there aren't enough empty desktops, it says how many to add in Mission Control.
-- You're taken back to the desktop you started on.
-
-Then it changes which session each window shows:
-
-- Running sessions (and ones waiting on you) go to the first desktops that hold at least two windows.
-- With an odd number of running sessions, one desktop gets one running and one idle.
-- Sessions that finished since you last looked come next, then idle ones.
-- Windows are tiled to the layout: left and right halves, a 2 × 2 grid, or 2 rows of 3.
-
-When every chat already has a window, it's instant: nothing slides, and the mouse is never touched.
-
-## Setup (already done on this Mac)
-
-- **tmux:** `brew install tmux`.
-- **Shell:** `~/.zshrc` sources `shell/claude-island.zsh`, so typing `claude` in a new Terminal window starts the session inside tmux. Subcommands (`claude mcp`, `claude update`, ...) and `claude -p` run as before. To go back to plain claude, delete that line.
-- **tmux settings** (`shell/tmux.conf`, on its own server, `tmux -L claude-island`):
-  - No status bar.
-  - No prefix key, so Ctrl+B still reaches Claude.
-  - Trackpad scrolling through history.
-  - Drag-to-select copies to the clipboard.
-  - Claude's titles, bells and notifications reach Terminal.
-
-### Sessions started before the setup
-
-Sessions that were already running aren't in tmux, so Reorganise can't move them. **Move into tmux** in the island restarts the idle ones inside tmux, in the same window, continuing the same chat (`claude --resume <id>`). Anything those sessions were running in the background (dev servers, monitors) stops. Busy sessions are skipped; move them once they're idle.
-
-Most sessions live in your home folder, which Claude Code only trusts for one session at a time. Without the step below, every restarted session stops at "Is this a project you trust?". To trust it once and for all (git repos inside still ask separately), run:
+You need a MacBook with a notch, macOS 14 or later, and [Claude Code](https://code.claude.com). Paste this into Terminal:
 
 ```sh
-python3 -c "import json,os;p=os.path.expanduser('~/.claude.json');c=json.load(open(p));c.setdefault('projects',{}).setdefault(os.path.expanduser('~'),{})['hasTrustDialogAccepted']=True;t=p+'.tmp';json.dump(c,open(t,'w'),indent=2);os.chmod(t,0o600);os.replace(t,p)"
+curl -fsSL https://raw.githubusercontent.com/arjun-vegeta/claude-island/main/install.sh | sh
 ```
 
-## How it gets its data (no account)
+Then open a new Terminal window, type `claude`, and hover over the notch.
 
-Everything comes from the `claude` binary and tools on this Mac:
+The installer:
+- puts **Claude Island** in `~/Applications`
+- adds one line to `~/.zshrc`, so `claude` starts inside Claude Island
+- opens the app
 
-- **Sessions and their status:** `~/.claude/sessions/<pid>.json`, which Claude Code keeps up to date itself.
-- **Model, effort and context:** the latest reply in each chat's transcript, which Claude Code writes as it goes.
-- **Usage:** `claude -p` started in SDK mode and sent a `get_usage` control request, the same data `/usage` shows. No prompt is sent, so it uses no tokens.
-- **Windows:**
-  - Terminal's AppleScript gives the windows, tabs and ttys.
-  - tmux says which window shows which session.
-  - Desktop numbers come from macOS's window server.
+To start it automatically, turn on **Open at login** in its settings.
 
-## Permissions
+## Permissions macOS will ask for
 
-- **Automation → Terminal:** to read your Terminal windows. macOS asks the first time the app starts.
-- **Accessibility:** only so Reorganise can press Ctrl+→ to reach an empty desktop. macOS asks the first time it needs to.
-- **Desktop, Downloads, Music and other folders:** the app doesn't open these itself. The `claude` process it starts to read your usage counts as Claude Island, so macOS asks on its behalf. Allowing once is enough: `build.sh` signs the app with a fixed identity, so permissions survive rebuilds.
+- **Terminal (Automation):** to see your Terminal windows and bring them forward. Asked the first time it starts.
+- **Accessibility:** only so Reorganise can switch to an empty desktop for you. Asked the first time it needs to.
+- **Folders such as Desktop and Downloads:** the `claude` process that checks your plan usage can trigger these. Allowing once is enough.
 
 ## Good to know
 
-- **Closing a window ends its session**, as it did before tmux. A session can still end up without a window when there are more sessions than windows after a Reorganise. The island shows it as "hidden"; click it to open a window for it.
-- **Screenshots dragged from the preview** (the thumbnail after ⌘⇧4) reach Claude through a small relay between each Terminal window and tmux (`shell/relay.c`, built as `shell/relay/tmux`). macOS lets only Terminal read that preview file, and the Claude sessions inside tmux don't count as Terminal. The relay does count as Terminal, so it copies the file to `~/Library/Caches/claude-island-drops` (cleared after a week) and passes Claude that path. For the same reason, Claude Island opens its windows as `.command` files rather than through AppleScript, which macOS wouldn't count as Terminal.
-- **Scrolling is tmux's.** After scrolling up, scroll back down or press Esc to return to the prompt.
-- **Keep desktop order fixed.** macOS has "Automatically rearrange Spaces based on most recent use" (System Settings › Desktop & Dock › Mission Control), and it's on by default. It shuffles which desktop is Desktop 1 as you switch apps. Turning it off keeps running sessions on the first desktops.
-- Only Terminal.app is supported.
+- **Only Terminal.app is supported.**
+- **Each chat runs inside tmux**, a tool that keeps it running apart from its window. That's how Reorganise can swap chats between windows instantly. You won't see tmux: there's no status bar, and your keys go straight to Claude.
+- **Closing a window ends its chat**, just like before.
+- **Scrolling:** after scrolling up, scroll back down or press Esc to get back to the prompt.
+- **Links:** click a link to open it.
+- **Screenshots:** you can drag the preview that appears after ⌘⇧4 straight into a chat.
+- **Desktop order:** turn off "Automatically rearrange Spaces based on most recent use" in System Settings › Desktop & Dock. Otherwise macOS keeps reshuffling your desktops.
+- **Chats started before you installed it** aren't in tmux yet. The island offers **Move into tmux**, which restarts them in place and keeps the conversation.
 
-## Build
+## Updating
+
+Run the install command again.
+
+## Uninstalling
+
+1. Quit Claude Island from its settings.
+2. Delete `~/Applications/Claude Island.app` and the `~/.claude-island` folder.
+3. Remove the Claude Island line from `~/.zshrc`.
+
+## For developers
+
+To build it yourself, you need Apple's command-line tools (`xcode-select --install`):
 
 ```sh
-./build.sh          # builds, signs and installs ~/Applications/Claude Island.app
-open ~/Applications/Claude\ Island.app
+git clone https://github.com/arjun-vegeta/claude-island.git && cd claude-island
+./scripts/build-tmux.sh   # optional: puts tmux inside the app (otherwise it uses Homebrew's)
+./build.sh                # builds and installs ~/Applications/Claude Island.app
 ```
 
-Turn on "Open at login" in the island's settings (the gear, bottom left).
+- `Sources/ClaudeIsland` is the app, written in Swift with SwiftUI.
+- `shell/` holds the tmux setup and the launcher. The app copies them to `~/.claude-island` when it starts.
+- `assets/clawd` has the original Clawd animations. `swift scripts/make-sprites.swift` turns them into the sprite sheets in `Resources/clawd`.
+- **Releases:** pushing a tag such as `v1.1` builds the app with tmux inside and publishes it, which is what the install command downloads.
 
-Command-line checks:
+The app also has a few commands for checking things from Terminal:
 
 ```sh
-.build/release/ClaudeIsland --cli list               # sessions, status, tmux session, desktop
-.build/release/ClaudeIsland --cli usage              # plan usage from the claude binary
-.build/release/ClaudeIsland --cli plan               # what Reorganise would do, without doing it
-.build/release/ClaudeIsland --cli desktops           # each desktop: empty or in use, and its chats
-.build/release/ClaudeIsland --cli reorganise
-.build/release/ClaudeIsland --cli move-to-tmux <pid> # restart one idle session inside tmux
-.build/release/ClaudeIsland --cli new-chat           # same as the New chat button
-.build/release/ClaudeIsland --cli demo [dance|wave|race]  # show a "finished" pop-up now, or bring Clawd out
+.build/release/ClaudeIsland --cli list       # chats, their status and details
+.build/release/ClaudeIsland --cli plan       # what Reorganise would do, without doing it
+.build/release/ClaudeIsland --cli desktops   # which desktops are empty
+.build/release/ClaudeIsland --cli usage      # plan usage
 ```
