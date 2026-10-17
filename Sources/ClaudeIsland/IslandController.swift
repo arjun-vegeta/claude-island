@@ -647,9 +647,12 @@ final class IslandController: NSObject, ObservableObject {
             var message: String
             var switched = 0
             do {
+                let spread = try Reorganizer.spreadOut(screens: screens)
                 let paired = try Reorganizer.pairUp(screens: screens)
                 (message, switched) = try Reorganizer.execute(Reorganizer.plan(sessions: list, screens: screens))
                 if paired > 0 { message = "Paired up \(paired) window\(paired == 1 ? "" : "s") · " + message }
+                if spread.opened > 0 { message = "Opened \(spread.opened) window\(spread.opened == 1 ? "" : "s") · " + message }
+                if let note = spread.note { message += " · " + note }
             } catch {
                 message = error.localizedDescription
             }

@@ -93,6 +93,107 @@ enum Reorganizer {
             .sorted { (displayRank[$0[0].display] ?? 0, $0[0].order) < (displayRank[$1[0].display] ?? 0, $1[0].order) }
     }
 
+    /// Gives every chat a window, two to a desktop. Chats with no window get one, and windows past the
+    /// first two on a crowded desktop move. Each goes beside a lone window first, then onto empty
+    /// desktops of the main display (reached with Ctrl+→, which needs Accessibility). Afterwards you're
+    /// taken back to the desktop you started on. Returns how many windows opened and a note about
+    /// anything left over. Blocking: call off the main thread.
+    static func spreadOut(screens: [ScreenInfo]) throws -> (opened: Int, note: String?) {
+        var groups = try desktopGroups()
+        let shown = Set(Tmux.clients().map(\.session))
+        var waiting: [(session: String, oldWindow: Int?)] = Tmux.sessionNames().filter { !shown.contains($0) }.map { ($0, nil) }
+        for (k, group) in groups.enumerated() where group.count > 2 {
+            waiting += group.dropFirst(2).map { ($0.session, $0.windowID) }
+            groups[k] = Array(group.prefix(2))
+        }
+        guard !waiting.isEmpty else { return (0, nil) }
+
+        let displays = SkyLight.displays()
+        let start = SkyLight.activeSpace()
+        let jumps = groups.joined().map { (id: $0.windowID, space: $0.space) }
+        var opened = 0
+        defer {
+            if opened > 0, let display = displays.first(where: { $0.spaces.contains { $0.id == start } }) {
+                _ = Desktops.go(to: start, on: display, windows: jumps)
+            }
+        }
+
+        enum Placed { case here(Int), elsewhere, failed }
+        // Opens a window for `item` on the desktop you're on, which should be `space`.
+        func place(_ item: (session: String, oldWindow: Int?), on space: UInt64) -> Placed {
+            let count = { Tmux.clients().filter { $0.session == item.session }.count }
+            let before = count()
+            guard let id = try? TerminalBridge.openWindow(running: Tmux.attachCommand(item.session)) else { return .failed }
+            let deadline = Date().addingTimeInterval(4)
+            while count() <= before, Date() < deadline { usleep(100_000) }
+            guard count() > before else { return .failed }
+            guard SkyLight.spaces(forWindow: CGWindowID(id)).contains(space) else {
+                // Landed on another desktop. A moved window closes again (its old one still shows the
+                // chat); a chat that had no window keeps this one, since closing it would end the chat.
+                if item.oldWindow != nil { try? TerminalBridge.close(windowID: id) }
+                return .elsewhere
+            }
+            if let old = item.oldWindow { try? TerminalBridge.close(windowID: old) }
+            return .here(id)
+        }
+        func screen(for display: String) -> ScreenInfo? {
+            screens.first { $0.uuid == display } ?? screens.first(where: \.isMain)
+        }
+        var switchFailed: String {
+            "macOS didn't switch desktops, so \(waiting.count) chat\(waiting.count == 1 ? "" : "s") still \(waiting.count == 1 ? "has" : "have") no window"
+        }
+
+        // Beside lone windows.
+        for group in groups where group.count == 1 && !waiting.isEmpty {
+            let anchor = group[0]
+            guard let display = displays.first(where: { $0.uuid == anchor.display }) ?? displays.first,
+                  let visible = screen(for: anchor.display)?.visible,
+                  Desktops.go(to: anchor.space, on: display, windows: [(anchor.windowID, anchor.space)]) else { return (opened, switchFailed) }
+            let item = waiting.removeFirst()
+            switch place(item, on: anchor.space) {
+            case .here(let id):
+                opened += 1
+                let anchorOnLeft = anchor.frame.midX < visible.midX
+                try? TerminalBridge.setBounds([(anchor.windowID, half(visible, right: !anchorOnLeft)), (id, half(visible, right: anchorOnLeft))])
+            case .elsewhere:
+                if item.oldWindow == nil { opened += 1 }
+                return (opened, switchFailed)
+            case .failed:
+                return (opened, "Couldn't open a window for \(item.session)")
+            }
+        }
+        guard !waiting.isEmpty else { return (opened, nil) }
+
+        // Then empty desktops, two windows each.
+        guard Desktops.canPressKeys(ask: true) else {
+            return (opened, "Allow Claude Island in System Settings › Privacy & Security › Accessibility, then Reorganise again to give \(waiting.count) more chat\(waiting.count == 1 ? "" : "s") a window")
+        }
+        let mainID = screens.first(where: \.isMain)?.uuid
+        guard let display = displays.first(where: { $0.uuid == mainID }) ?? displays.first,
+              let visible = screen(for: display.uuid)?.visible else { return (opened, nil) }
+        let busy = Desktops.occupied()
+        for desktop in display.desktops where !busy.contains(desktop.id) && !waiting.isEmpty {
+            guard Desktops.go(to: desktop.id, on: display, windows: jumps) else { return (opened, switchFailed) }
+            var here: [Int] = []
+            while here.count < 2, !waiting.isEmpty {
+                let item = waiting.removeFirst()
+                switch place(item, on: desktop.id) {
+                case .here(let id): here.append(id); opened += 1
+                case .elsewhere:
+                    if item.oldWindow == nil { opened += 1 }
+                    return (opened, switchFailed)
+                case .failed:
+                    return (opened, "Couldn't open a window for \(item.session)")
+                }
+            }
+            try? TerminalBridge.setBounds(here.enumerated().map { ($1, half(visible, right: $0 == 1)) })
+        }
+        guard waiting.isEmpty else {
+            return (opened, "No empty desktops left: add \((waiting.count + 1) / 2) in Mission Control, then Reorganise again")
+        }
+        return (opened, nil)
+    }
+
     /// Makes every desktop (except perhaps the last) hold two windows. A desktop with one window gets
     /// a window from the last desktops: a new window opens beside it showing the same session, then the
     /// old one closes. The session never stops, since for a moment two windows show it. Returns how

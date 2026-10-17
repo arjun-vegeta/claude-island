@@ -25,14 +25,20 @@ A Dynamic Island for Claude Code on a notched MacBook. Hover over the notch to s
 
 ## Reorganise
 
-Each Claude session runs inside its own tmux session, and each Terminal window shows one of them. Reorganise leaves every window where it is and changes which session each window shows:
+Each Claude session runs inside its own tmux session, and each Terminal window shows one of them. First, Reorganise makes sure every chat has a window, two to a desktop:
+
+- A chat with no window gets one, and a desktop with more than two windows gives up the extras.
+- They go beside a desktop's single window first, then onto empty desktops (ones with no app windows at all), two each. It walks to an empty desktop by pressing Ctrl+→, so it needs Claude Island allowed under Accessibility; macOS asks the first time. If there aren't enough empty desktops, it says how many to add in Mission Control.
+- You're taken back to the desktop you started on.
+
+Then it changes which session each window shows:
 
 - Running sessions (and ones waiting on you) go to the first desktops that hold two windows, left and right.
 - With an odd number of running sessions, one desktop gets one running and one idle.
 - Sessions that finished since you last looked come next, then idle ones.
 - Windows are snapped to the left and right halves of the screen.
 
-It's instant. Nothing slides, and the mouse is never touched.
+When every chat already has a window, it's instant: nothing slides, and the mouse is never touched.
 
 ## Setup (already done on this Mac)
 
@@ -69,6 +75,7 @@ Everything comes from the `claude` binary and tools on this Mac:
 ## Permissions
 
 - **Automation → Terminal:** to read your Terminal windows. macOS asks the first time the app starts.
+- **Accessibility:** only so Reorganise can press Ctrl+→ to reach an empty desktop. macOS asks the first time it needs to.
 - **Desktop, Downloads, Music and other folders:** the app doesn't open these itself. The `claude` process it starts to read your usage counts as Claude Island, so macOS asks on its behalf. Allowing once is enough: `build.sh` signs the app with a fixed identity, so permissions survive rebuilds.
 
 ## Good to know
@@ -94,6 +101,7 @@ Command-line checks:
 .build/release/ClaudeIsland --cli list               # sessions, status, tmux session, desktop
 .build/release/ClaudeIsland --cli usage              # plan usage from the claude binary
 .build/release/ClaudeIsland --cli plan               # what Reorganise would do, without doing it
+.build/release/ClaudeIsland --cli desktops           # each desktop: empty or in use, and its chats
 .build/release/ClaudeIsland --cli reorganise
 .build/release/ClaudeIsland --cli move-to-tmux <pid> # restart one idle session inside tmux
 .build/release/ClaudeIsland --cli new-chat           # same as the New chat button
