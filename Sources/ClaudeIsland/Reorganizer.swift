@@ -119,15 +119,17 @@ enum Reorganizer {
         windows.prefix(capacity).enumerated().map { ($1, cell(visible, slot: $0, of: capacity)) }
     }
 
-    /// Gives every chat a window, `capacity` to a desktop. Chats with no window get one, and windows past
-    /// the first `capacity` on a crowded desktop move. Each goes onto a desktop with room first, then onto
+    /// Gives every chat a window, `capacity` to a desktop. Windows past the first `capacity` on a crowded
+    /// desktop always move (say, after switching from 4 windows per desktop to 2); chats with no window
+    /// get one only with `openMissing`. Each goes onto a desktop with room first, then onto
     /// empty desktops of the main display (reached with Ctrl+→, which needs Accessibility). Afterwards you're
     /// taken back to the desktop you started on. Returns how many windows opened and a note about
     /// anything left over. Blocking: call off the main thread.
-    static func spreadOut(screens: [ScreenInfo], capacity: Int) throws -> (opened: Int, note: String?) {
+    static func spreadOut(screens: [ScreenInfo], capacity: Int, openMissing: Bool) throws -> (opened: Int, note: String?) {
         var groups = try desktopGroups()
         let shown = Set(Tmux.clients().map(\.session))
-        var waiting: [(session: String, oldWindow: Int?)] = Tmux.sessionNames().filter { !shown.contains($0) }.map { ($0, nil) }
+        var waiting: [(session: String, oldWindow: Int?)] = openMissing
+            ? Tmux.sessionNames().filter { !shown.contains($0) }.map { ($0, nil) } : []
         for (k, group) in groups.enumerated() where group.count > capacity {
             waiting += group.dropFirst(capacity).map { ($0.session, $0.windowID) }
             groups[k] = Array(group.prefix(capacity))

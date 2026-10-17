@@ -19,6 +19,9 @@ final class Settings: ObservableObject {
         }
     }
 
+    /// Whether Reorganise opens windows for chats without one, as saved (for the CLI).
+    static var savedOpensWindows: Bool { defaults.object(forKey: "reorganiseOpensWindows") as? Bool ?? true }
+
     /// Windows per desktop as saved, for code that runs without a Settings object (the CLI).
     static var savedWindowsPerDesktop: Int {
         let n = defaults.integer(forKey: "windowsPerDesktop")
