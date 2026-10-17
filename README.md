@@ -18,35 +18,18 @@ It needs no account or login. Everything comes from Claude Code itself on your M
 
 ## Install
 
-You need a MacBook with a notch, macOS 14 or later, [Claude Code](https://code.claude.com), and Homebrew.
+You need a MacBook with a notch, macOS 14 or later, and [Claude Code](https://code.claude.com). Paste this into Terminal:
 
-1. Install the tools:
+```sh
+curl -fsSL https://raw.githubusercontent.com/arjun-vegeta/claude-island/main/install.sh | sh
+```
 
-   ```sh
-   xcode-select --install   # Apple's developer tools, if you don't have them
-   brew install tmux
-   ```
+Then open a new Terminal window, type `claude`, and hover over the notch.
 
-2. Download Claude Island into your home folder. It has to live at `~/claude-island`:
-
-   ```sh
-   git clone https://github.com/arjun-vegeta/claude-island.git ~/claude-island
-   ```
-
-3. Build it. This puts **Claude Island** in `~/Applications`:
-
-   ```sh
-   ~/claude-island/build.sh
-   open ~/Applications/Claude\ Island.app
-   ```
-
-4. Make `claude` start inside Claude Island, so it can move your chats around. Add this line to `~/.zshrc`, then open a new Terminal window:
-
-   ```sh
-   source ~/claude-island/shell/claude-island.zsh
-   ```
-
-5. Start chatting: type `claude` in Terminal as usual, then hover over the notch.
+The installer:
+- puts **Claude Island** in `~/Applications`
+- adds one line to `~/.zshrc`, so `claude` starts inside Claude Island
+- opens the app
 
 To start it automatically, turn on **Open at login** in its settings.
 
@@ -66,19 +49,31 @@ To start it automatically, turn on **Open at login** in its settings.
 - **Screenshots:** you can drag the preview that appears after ⌘⇧4 straight into a chat.
 - **Desktop order:** turn off "Automatically rearrange Spaces based on most recent use" in System Settings › Desktop & Dock. Otherwise macOS keeps reshuffling your desktops.
 - **Chats started before you installed it** aren't in tmux yet. The island offers **Move into tmux**, which restarts them in place and keeps the conversation.
-- **To stop using it:** remove the `source` line from `~/.zshrc` and quit the app from its settings.
 
 ## Updating
 
-```sh
-cd ~/claude-island && git pull && ./build.sh && open ~/Applications/Claude\ Island.app
-```
+Run the install command again.
+
+## Uninstalling
+
+1. Quit Claude Island from its settings.
+2. Delete `~/Applications/Claude Island.app` and the `~/.claude-island` folder.
+3. Remove the Claude Island line from `~/.zshrc`.
 
 ## For developers
 
+To build it yourself, you need Apple's command-line tools (`xcode-select --install`):
+
+```sh
+git clone https://github.com/arjun-vegeta/claude-island.git && cd claude-island
+./scripts/build-tmux.sh   # optional: puts tmux inside the app (otherwise it uses Homebrew's)
+./build.sh                # builds and installs ~/Applications/Claude Island.app
+```
+
 - `Sources/ClaudeIsland` is the app, written in Swift with SwiftUI.
-- `shell/` holds the tmux setup and the launcher.
+- `shell/` holds the tmux setup and the launcher. The app copies them to `~/.claude-island` when it starts.
 - `assets/clawd` has the original Clawd animations. `swift scripts/make-sprites.swift` turns them into the sprite sheets in `Resources/clawd`.
+- **Releases:** pushing a tag such as `v1.1` builds the app with tmux inside and publishes it, which is what the install command downloads.
 
 The app also has a few commands for checking things from Terminal:
 

@@ -3,3 +3,4 @@
 build/
 shell/relay/
 .DS_Store
+dist/

@@ -31,10 +31,10 @@ enum IslandLayout {
     static let noteHeight: CGFloat = 22
     /// The search line that appears when you type with the island open.
     static let searchHeight: CGFloat = 40
-    /// The settings page: four titled groups of full-width rows, ten rows in all.
+    /// The settings page: four titled groups of full-width rows, eleven rows in all.
     static let settingsRow: CGFloat = 36
     static let settingsSections = 4
-    static let settingsRows = 10
+    static let settingsRows = 11
     static var settingsHeight: CGFloat {
         CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow + listBottom + 1
     }

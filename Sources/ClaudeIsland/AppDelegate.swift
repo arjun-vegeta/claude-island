@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
+        ShellSupport.install()
         let island = IslandController(sessions: sessions, usage: usage, settings: settings)
         island.setup()
         self.island = island

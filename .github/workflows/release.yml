@@ -1,0 +1,27 @@
+# Builds Claude Island with tmux inside and publishes it as a GitHub release, which install.sh downloads.
+# Push a version tag to run it:  git tag v1.1 && git push origin v1.1
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build tmux
+        run: ./scripts/build-tmux.sh
+
+      - name: Build the app
+        run: VERSION="${GITHUB_REF_NAME#v}" ./build.sh --package
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/Claude-Island.zip --title "Claude Island ${GITHUB_REF_NAME#v}" --generate-notes
