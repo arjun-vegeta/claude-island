@@ -11,9 +11,17 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    # macOS 26 with Xcode 26: the app records the SDK it was built with, and macOS only gives apps built
+    # with the 26 SDK or later the current (Liquid Glass) controls.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check the SDK
+        run: |
+          sdk=$(xcrun --show-sdk-version)
+          echo "Building with the macOS $sdk SDK"
+          [ "${sdk%%.*}" -ge 26 ] || { echo "Need the macOS 26 SDK or later for the current look"; exit 1; }
 
       - name: Build tmux
         run: ./scripts/build-tmux.sh

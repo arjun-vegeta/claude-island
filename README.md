@@ -21,7 +21,7 @@ It needs no account or login. Everything comes from Claude Code itself on your M
 You need a MacBook with a notch, macOS 14 or later, and [Claude Code](https://code.claude.com). Paste this into Terminal:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/arjun-vegeta/claude-island/main/install.sh | sh
+curl -fsSL arjunr.dev/claude-island | sh
 ```
 
 Then open a new Terminal window, type `claude`, and hover over the notch.

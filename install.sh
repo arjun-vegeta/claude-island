@@ -1,7 +1,8 @@
 #!/bin/sh
 # Installs Claude Island: downloads the latest release into ~/Applications, makes `claude` in Terminal
 # start inside it (one line in ~/.zshrc), and opens it.
-#   curl -fsSL https://raw.githubusercontent.com/arjun-vegeta/claude-island/main/install.sh | sh
+#   curl -fsSL arjunr.dev/claude-island | sh
+# (arjunr.dev/claude-island serves this file from the main branch.)
 set -eu
 
 REPO="arjun-vegeta/claude-island"
