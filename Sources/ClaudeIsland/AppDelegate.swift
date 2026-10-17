@@ -10,6 +10,15 @@ final class Settings: ObservableObject {
     /// Window layouts Reorganise can use: 2 side by side, a 2 × 2 grid, or 2 rows of 3.
     static let layouts = [2, 4, 6]
 
+    /// The symbol for a layout, used in settings and on the Reorganise button.
+    static func layoutSymbol(_ windows: Int) -> String {
+        switch windows {
+        case 4: return "rectangle.split.2x2"
+        case 6: return "rectangle.grid.3x2"
+        default: return "rectangle.split.2x1"
+        }
+    }
+
     /// Windows per desktop as saved, for code that runs without a Settings object (the CLI).
     static var savedWindowsPerDesktop: Int {
         let n = defaults.integer(forKey: "windowsPerDesktop")

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The island's settings, in place of the sessions: the same two-column sections, each setting a row
-/// with a switch. Closing the island always brings back the sessions.
+/// The island's settings, in place of the sessions: one column of grouped rows, like System Settings,
+/// so every label fits. Closing the island always brings back the sessions.
 struct SettingsPage: View {
     @ObservedObject var controller: IslandController
     @ObservedObject var usage: UsageStore
@@ -12,48 +12,40 @@ struct SettingsPage: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             VStack(alignment: .leading, spacing: 0) {
-                section("Notifications") {
-                    toggle("popups", "Pop-up when a chat finishes", $settings.popUpOnEvents,
-                           help: "Opens the island briefly when a chat finishes or needs you")
+                group("Notifications") {
+                    toggle("popups", "Pop-up when a chat finishes or needs you", $settings.popUpOnEvents, first: true,
+                           help: "Opens the island briefly with the chat's name")
                     toggle("sound", "Sound", $settings.playSound,
                            help: "A chime when a chat finishes, and another when one needs you")
                 }
-                section("Island") {
-                    VStack(spacing: IslandLayout.settingsRowGap) {
-                        HStack(spacing: 8) {
-                            toggle("clawd", "Clawd beside the notch", $settings.showClawd,
-                                   help: "Clawd lurks, dances and waves next to the notch while the island is closed")
-                            toggle("usage", "Plan usage", $settings.showUsage,
-                                   help: "Your 5-hour and weekly limits at the top of the island")
-                        }
-                        toggle("details", "Model, effort and context under each chat", $settings.showSessionDetails,
-                               help: "From each chat's latest reply, for example “Opus 5.5 · high · 38% of 1M”")
+                group("Island") {
+                    toggle("clawd", "Clawd beside the notch", $settings.showClawd, first: true,
+                           help: "Clawd lurks, dances and waves next to the notch while the island is closed")
+                    toggle("usage", "Plan usage", $settings.showUsage,
+                           help: "Your 5-hour and weekly limits at the top of the island")
+                    toggle("details", "Model, effort and context under each chat", $settings.showSessionDetails,
+                           help: "From each chat's latest reply, for example “Opus 5.5 · high · 38% of 1M”")
+                }
+                group("Reorganise") {
+                    layoutPicker
+                    toggle("windows", "Open windows for chats without one", $settings.reorganiseOpensWindows,
+                           help: "Fills each desktop's layout, using empty desktops if needed")
+                    action("access", "Desktop switching", value: access.allowed ? "Allowed" : "Allow…",
+                           highlight: !access.allowed,
+                           help: "Reorganise presses Ctrl+→ to reach empty desktops, which needs Accessibility") {
+                        access.ask()
                     }
                 }
-                section("Reorganise") {
-                    VStack(spacing: IslandLayout.settingsRowGap) {
-                        layoutPicker
-                        HStack(spacing: 8) {
-                            toggle("windows", "Open windows for every chat", $settings.reorganiseOpensWindows,
-                                   help: "Chats without a window get one, filling each desktop's layout, on empty desktops if needed")
-                            action("access", "Desktop switching", value: access.allowed ? "Allowed" : "Allow…",
-                                   highlight: !access.allowed,
-                                   help: "Reorganise presses Ctrl+→ to reach empty desktops, which needs Accessibility") {
-                                access.ask()
-                            }
-                        }
-                    }
-                }
-                section("General") {
+                group("General") {
                     toggle("login", "Open at login", Binding(get: { settings.openAtLogin }, set: { settings.openAtLogin = $0 }),
-                           help: "Start Claude Island when you log in")
-                    action("refresh", "Usage", value: usage.loading ? "Checking…" : checked(context.date),
+                           first: true, help: "Start Claude Island when you log in")
+                    action("refresh", "Check plan usage", value: usage.loading ? "Checking…" : checked(context.date),
                            highlight: false, help: "Check your plan usage now") {
                         usage.refresh()
                     }
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 16)
             .padding(.bottom, IslandLayout.listBottom)
         }
         .onAppear { access.check() }
@@ -61,36 +53,23 @@ struct SettingsPage: View {
 
     /// How many windows Reorganise tiles on each desktop: 2 side by side, 4 in a 2 × 2 grid, 6 in 2 rows of 3.
     private var layoutPicker: some View {
-        row("Windows per desktop", hovered: false) {
+        row("Windows per desktop", hovered: false, first: true) {
             Text(layoutName(settings.windowsPerDesktop))
                 .font(islandFont(11))
                 .foregroundStyle(Color.ink3)
-            Picker("Windows per desktop", selection: $settings.windowsPerDesktop) {
-                ForEach(Settings.layouts, id: \.self) { n in
-                    Image(systemName: layoutSymbol(n)).help(layoutName(n)).tag(n)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .environment(\.controlActiveState, .key)
+                .lineLimit(1)
+            LayoutSegments(selection: $settings.windowsPerDesktop,
+                           options: Settings.layouts.map { (value: $0, symbol: Settings.layoutSymbol($0), name: layoutName($0)) })
+                .fixedSize()
         }
         .help("How Reorganise and New chat lay out Terminal windows on each desktop")
     }
 
     private func layoutName(_ n: Int) -> String {
         switch n {
-        case 4: return "4 · 2 × 2"
-        case 6: return "6 · 2 rows of 3"
-        default: return "2 · side by side"
-        }
-    }
-
-    private func layoutSymbol(_ n: Int) -> String {
-        switch n {
-        case 4: return "rectangle.split.2x2"
-        case 6: return "rectangle.grid.3x2"
-        default: return "rectangle.split.2x1"
+        case 4: return "2 × 2"
+        case 6: return "2 rows of 3"
+        default: return "Side by side"
         }
     }
 
@@ -100,23 +79,26 @@ struct SettingsPage: View {
         return age < 60 ? "Checked just now" : "Checked \(shortDuration(age)) ago"
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    /// A titled group: its rows share one rounded panel, with hairlines between them.
+    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title.uppercased())
                 .font(islandFont(10))
                 .tracking(0.9)
                 .foregroundStyle(Color.ink3)
-                .padding(.leading, 8)
+                .padding(.leading, 12)
                 .frame(height: IslandLayout.sectionLabel, alignment: .bottomLeading)
                 .padding(.bottom, IslandLayout.sectionLabelGap)
-            HStack(spacing: 8) { content() }
+            VStack(spacing: 0) { content() }
+                .background(Color.ivory.opacity(0.045))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
-    private func toggle(_ id: String, _ title: String, _ isOn: Binding<Bool>, help: String) -> some View {
+    private func toggle(_ id: String, _ title: String, _ isOn: Binding<Bool>, first: Bool = false, help: String) -> some View {
         let hovered = controller.hovered == "setting-\(id)"
         return Button { isOn.wrappedValue.toggle() } label: {
-            row(title, hovered: hovered) {
+            row(title, hovered: hovered, first: first) {
                 // macOS's own switch, so it looks and moves like System Settings (Liquid Glass on macOS 26+).
                 Toggle(title, isOn: isOn)
                     .toggleStyle(.switch)
@@ -135,13 +117,13 @@ struct SettingsPage: View {
         .help(help)
     }
 
-    private func action(_ id: String, _ title: String, value: String, highlight: Bool, help: String,
+    private func action(_ id: String, _ title: String, value: String, highlight: Bool, first: Bool = false, help: String,
                         perform: @escaping () -> Void) -> some View {
         let hovered = controller.hovered == "setting-\(id)"
         return Button(action: perform) {
-            row(title, hovered: hovered) {
+            row(title, hovered: hovered, first: first) {
                 Text(value)
-                    .font(islandFont(11))
+                    .font(islandFont(11.5))
                     .foregroundStyle(highlight ? Color.clay : hovered ? Color.ink1 : Color.ink2)
                     .lineLimit(1)
             }
@@ -151,22 +133,61 @@ struct SettingsPage: View {
         .help(help)
     }
 
-    private func row<Trailing: View>(_ title: String, hovered: Bool, @ViewBuilder trailing: () -> Trailing) -> some View {
-        HStack(spacing: 8) {
+    /// One setting: its name on the left, its control on the right, a hairline above unless it's first.
+    private func row<Trailing: View>(_ title: String, hovered: Bool, first: Bool, @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 10) {
             Text(title)
-                .font(islandFont(12))
+                .font(islandFont(12.5))
                 .foregroundStyle(Color.ink1)
                 .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 6)
+            Spacer(minLength: 12)
             trailing()
         }
-        .padding(.horizontal, 10)
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
         .frame(maxWidth: .infinity)
         .frame(height: IslandLayout.settingsRow)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.ivory.opacity(hovered ? 0.08 : 0.04)))
+        .background(Color.ivory.opacity(hovered ? 0.05 : 0))
+        .overlay(alignment: .top) {
+            if !first { Rectangle().fill(Color.hairline).frame(height: 1).padding(.leading, 14) }
+        }
         .contentShape(Rectangle())
         .animation(.easeOut(duration: 0.1), value: hovered)
+    }
+}
+
+/// AppKit's segmented control, for the one thing SwiftUI's segmented picker can't do on macOS:
+/// show the selected segment in Claude's orange instead of the system accent colour.
+private struct LayoutSegments: NSViewRepresentable {
+    @Binding var selection: Int
+    let options: [(value: Int, symbol: String, name: String)]
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let images = options.map { NSImage(systemSymbolName: $0.symbol, accessibilityDescription: $0.name) ?? NSImage() }
+        let control = NSSegmentedControl(images: images, trackingMode: .selectOne,
+                                         target: context.coordinator, action: #selector(Coordinator.changed(_:)))
+        control.controlSize = .small
+        // The same brighter clay as the switches.
+        control.selectedSegmentBezelColor = NSColor(red: 0.92, green: 0.47, blue: 0.32, alpha: 1)
+        for (i, option) in options.enumerated() { control.setToolTip(option.name, forSegment: i) }
+        return control
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.parent = self
+        control.selectedSegment = options.firstIndex { $0.value == selection } ?? 0
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject {
+        var parent: LayoutSegments
+        init(_ parent: LayoutSegments) { self.parent = parent }
+
+        @objc func changed(_ control: NSSegmentedControl) {
+            guard parent.options.indices.contains(control.selectedSegment) else { return }
+            parent.selection = parent.options[control.selectedSegment].value
+        }
     }
 }
 

@@ -408,13 +408,13 @@ struct ExpandedView: View {
 
                 Button(action: controller.reorganise) {
                     HStack(spacing: 6) {
-                        Image(systemName: "rectangle.split.2x1")
+                        Image(systemName: Settings.layoutSymbol(settings.windowsPerDesktop))
                         Text("Reorganise")
                     }
                 }
                 .buttonStyle(PillStyle(filled: false, hovered: controller.hovered == "reorganise"))
                 .hoverTarget("reorganise")
-                .help("Running sessions first, two per desktop (left and right), idle ones after")
+                .help("Running sessions first, \(settings.windowsPerDesktop) per desktop, idle ones after")
 
                 Button(action: controller.newChat) {
                     HStack(spacing: 6) {

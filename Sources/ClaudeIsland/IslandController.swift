@@ -31,16 +31,12 @@ enum IslandLayout {
     static let noteHeight: CGFloat = 22
     /// The search line that appears when you type with the island open.
     static let searchHeight: CGFloat = 40
-    /// The settings page: four sections of two-column rows.
-    static let settingsRow: CGFloat = 34
+    /// The settings page: four titled groups of full-width rows, ten rows in all.
+    static let settingsRow: CGFloat = 36
     static let settingsSections = 4
-    static let settingsRows = 6
-    /// Between two rows of the same section (Island and Reorganise have two each).
-    static let settingsRowGap: CGFloat = 6
-    static let settingsRowGaps = 2
+    static let settingsRows = 10
     static var settingsHeight: CGFloat {
-        CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow
-            + CGFloat(settingsRowGaps) * settingsRowGap + listBottom + 1
+        CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow + listBottom + 1
     }
 }
 
