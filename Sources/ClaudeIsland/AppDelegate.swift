@@ -38,12 +38,15 @@ final class Settings: ObservableObject {
     @Published var reorganiseOpensWindows: Bool { didSet { defaults.set(reorganiseOpensWindows, forKey: "reorganiseOpensWindows") } }
     /// How many Terminal windows Reorganise puts on each desktop, tiled: 2, 4 or 6.
     @Published var windowsPerDesktop: Int { didSet { defaults.set(windowsPerDesktop, forKey: "windowsPerDesktop") } }
+    /// Install new releases by itself (checked daily, installed while the island is closed).
+    @Published var autoUpdate: Bool { didSet { defaults.set(autoUpdate, forKey: "autoUpdate") } }
     /// Model, effort and context under each chat's name.
     @Published var showSessionDetails: Bool { didSet { defaults.set(showSessionDetails, forKey: "showSessionDetails") } }
 
     init() {
         defaults.register(defaults: ["popUpOnEvents": true, "playSound": true, "showClawd": true, "showUsage": true,
-                                     "reorganiseOpensWindows": true, "showSessionDetails": true])
+                                     "reorganiseOpensWindows": true, "showSessionDetails": true,
+                                     "autoUpdate": true])
         popUpOnEvents = defaults.bool(forKey: "popUpOnEvents")
         playSound = defaults.bool(forKey: "playSound")
         showClawd = defaults.bool(forKey: "showClawd")
@@ -51,6 +54,7 @@ final class Settings: ObservableObject {
         reorganiseOpensWindows = defaults.bool(forKey: "reorganiseOpensWindows")
         windowsPerDesktop = Settings.savedWindowsPerDesktop
         showSessionDetails = defaults.bool(forKey: "showSessionDetails")
+        autoUpdate = defaults.bool(forKey: "autoUpdate")
     }
 
     var openAtLogin: Bool {
@@ -67,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let sessions = SessionStore()
     let usage = UsageStore()
     private var island: IslandController?
+    private(set) var updater: Updater!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
@@ -77,9 +82,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         ShellSupport.install()
         let island = IslandController(sessions: sessions, usage: usage, settings: settings)
+        updater = Updater(settings: settings) { [weak island] in island?.isBusy ?? false }
+        island.updater = updater
         island.setup()
         self.island = island
         sessions.start()
         usage.start()
+        updater.start()
     }
 }

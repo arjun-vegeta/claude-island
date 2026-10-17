@@ -6,6 +6,7 @@ struct SettingsPage: View {
     @ObservedObject var controller: IslandController
     @ObservedObject var usage: UsageStore
     @ObservedObject var settings: Settings
+    @ObservedObject var updater: Updater
     /// Re-read when the page opens, so a permission granted in System Settings shows up.
     @StateObject private var access = AccessCheck()
     @StateObject private var hook = HookCheck()
@@ -45,6 +46,7 @@ struct SettingsPage: View {
                     }
                     toggle("login", "Open at login", Binding(get: { settings.openAtLogin }, set: { settings.openAtLogin = $0 }),
                            help: "Start Claude Island when you log in")
+                    updatesRow
                     action("refresh", "Check plan usage", value: usage.loading ? "Checking…" : checked(context.date),
                            highlight: false, help: "Check your plan usage now") {
                         usage.refresh()
@@ -55,6 +57,45 @@ struct SettingsPage: View {
             .padding(.bottom, IslandLayout.listBottom)
         }
         .onAppear { access.check(); hook.check() }
+    }
+
+    /// Automatic updates on or off, with this version's status: up to date, an update to install, or why
+    /// the last check failed. Clicking the status checks again, or installs the waiting update.
+    private var updatesRow: some View {
+        let hovered = controller.hovered == "setting-update"
+        let (status, highlight) = updateStatus
+        return row("Update automatically", hovered: false, first: false) {
+            Button(action: updateAction) {
+                Text(status)
+                    .font(islandFont(11.5))
+                    .foregroundStyle(highlight ? Color.clay : hovered ? Color.ink1 : Color.ink2)
+                    .lineLimit(1)
+            }
+            .buttonStyle(CardPress())
+            .hoverTarget("setting-update")
+            .disabled(Updater.currentVersion == nil)
+            nativeSwitch("Update automatically", $settings.autoUpdate)
+        }
+        .help("Checks for a new version once a day and installs it while the island is closed. Your chats keep running.")
+    }
+
+    private var updateStatus: (String, Bool) {
+        guard let version = Updater.currentVersion else { return ("Built from source", false) }
+        switch updater.state {
+        case .idle, .upToDate: return ("\(version) · Up to date", false)
+        case .checking: return ("Checking…", false)
+        case .available(let new): return ("Install \(new)", true)
+        case .installing(let new): return ("Installing \(new)…", false)
+        case .failed(let message): return (message, false)
+        }
+    }
+
+    private func updateAction() {
+        switch updater.state {
+        case .available(let new): updater.install(new)
+        case .installing, .checking: break
+        default: updater.check()
+        }
     }
 
     /// How many windows Reorganise tiles on each desktop: 2 side by side, 4 in a 2 × 2 grid, 6 in 2 rows of 3.
@@ -104,23 +145,25 @@ struct SettingsPage: View {
     private func toggle(_ id: String, _ title: String, _ isOn: Binding<Bool>, first: Bool = false, help: String) -> some View {
         let hovered = controller.hovered == "setting-\(id)"
         return Button { isOn.wrappedValue.toggle() } label: {
-            row(title, hovered: hovered, first: first) {
-                // macOS's own switch, so it looks and moves like System Settings (Liquid Glass on macOS 26+).
-                Toggle(title, isOn: isOn)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    // The island never makes the app active, and AppKit draws switches in inactive
-                    // windows grey; draw them as in a key window, in Claude's orange,
-                    // 15% smaller than standard.
-                    .environment(\.controlActiveState, .key)
-                    // The glass switch washes its tint out, so it gets a brighter clay than the rest of the island.
-                    .tint(Color(red: 0.92, green: 0.47, blue: 0.32))
-                    .scaleEffect(0.85)
-            }
+            row(title, hovered: hovered, first: first) { nativeSwitch(title, isOn) }
         }
         .buttonStyle(CardPress())
         .hoverTarget("setting-\(id)")
         .help(help)
+    }
+
+    /// macOS's own switch, so it looks and moves like System Settings (Liquid Glass on macOS 26+).
+    private func nativeSwitch(_ title: String, _ isOn: Binding<Bool>) -> some View {
+        Toggle(title, isOn: isOn)
+            .toggleStyle(.switch)
+            .labelsHidden()
+            // The island never makes the app active, and AppKit draws switches in inactive
+            // windows grey; draw them as in a key window, in Claude's orange,
+            // 15% smaller than standard.
+            .environment(\.controlActiveState, .key)
+            // The glass switch washes its tint out, so it gets a brighter clay than the rest of the island.
+            .tint(Color(red: 0.92, green: 0.47, blue: 0.32))
+            .scaleEffect(0.85)
     }
 
     private func action(_ id: String, _ title: String, value: String, highlight: Bool, first: Bool = false, help: String,

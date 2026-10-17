@@ -78,6 +78,7 @@ struct IslandRootView: View {
     @ObservedObject var sessions: SessionStore
     @ObservedObject var usage: UsageStore
     @ObservedObject var settings: Settings
+    @ObservedObject var updater: Updater
 
     private var bottomRadius: CGFloat {
         switch controller.mode {
@@ -144,7 +145,7 @@ struct IslandRootView: View {
         case .collapsed:
             Color.clear
         case .expanded:
-            ExpandedView(controller: controller, sessions: sessions, usage: usage, settings: settings)
+            ExpandedView(controller: controller, sessions: sessions, usage: usage, settings: settings, updater: updater)
         case .toast(let event):
             ToastView(event: event, notchHeight: controller.geometry.notchHeight, hovered: controller.hovered == "toast") {
                 controller.focus(event.pid)
@@ -163,6 +164,7 @@ struct ExpandedView: View {
     @ObservedObject var sessions: SessionStore
     @ObservedObject var usage: UsageStore
     @ObservedObject var settings: Settings
+    @ObservedObject var updater: Updater
 
     var body: some View {
         let list = sessions.sessions
@@ -170,7 +172,7 @@ struct ExpandedView: View {
             header(list)
 
             if controller.showingSettings {
-                SettingsPage(controller: controller, usage: usage, settings: settings)
+                SettingsPage(controller: controller, usage: usage, settings: settings, updater: updater)
                     .frame(height: controller.settingsPageHeight, alignment: .top)
                 Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
                 footer.frame(height: IslandLayout.footerHeight - 1)
@@ -386,6 +388,12 @@ struct ExpandedView: View {
                         .foregroundStyle(Color.ink1)
                         .frame(width: 28, height: 28)
                         .background(Circle().fill(Color.ivory.opacity(controller.hovered == "settings" ? 0.13 : 0.08)))
+                        .overlay(alignment: .topTrailing) {
+                            // An update is waiting (automatic updates off, or not installed yet).
+                            if updater.updateAvailable {
+                                Circle().fill(Color.clay).frame(width: 7, height: 7).offset(x: 1, y: -1)
+                            }
+                        }
                         .animation(.easeOut(duration: 0.1), value: controller.hovered == "settings")
                 }
                 .buttonStyle(CardPress())

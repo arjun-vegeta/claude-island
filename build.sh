@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 
 APP="Claude Island.app"
 DEST="$HOME/Applications/$APP"
-VERSION=${VERSION:-1.0}
+VERSION=${VERSION:-dev}   # releases set it from the tag; "dev" builds never update themselves
 PACKAGE=false
 [[ ${1:-} == --package ]] && PACKAGE=true
 

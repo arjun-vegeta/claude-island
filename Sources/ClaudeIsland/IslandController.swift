@@ -3,7 +3,7 @@ import Combine
 import SwiftUI
 
 enum IslandLayout {
-    static let panelSize = CGSize(width: 680, height: 660)
+    static let panelSize = CGSize(width: 680, height: 720)
     static let expandedWidth: CGFloat = 560
     static let toastWidth: CGFloat = 360
     static let toastBody: CGFloat = 46
@@ -31,10 +31,10 @@ enum IslandLayout {
     static let noteHeight: CGFloat = 22
     /// The search line that appears when you type with the island open.
     static let searchHeight: CGFloat = 40
-    /// The settings page: four titled groups of full-width rows, eleven rows in all.
+    /// The settings page: four titled groups of full-width rows, twelve rows in all.
     static let settingsRow: CGFloat = 36
     static let settingsSections = 4
-    static let settingsRows = 11
+    static let settingsRows = 12
     static var settingsHeight: CGFloat {
         CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow + listBottom + 1
     }
@@ -194,6 +194,12 @@ final class IslandController: NSObject, ObservableObject {
 
     static let demoNotification = Notification.Name("com.arjun.claude-island.demo")
 
+    /// Set by the app delegate before `setup()`.
+    var updater: Updater!
+
+    /// Restarting for an update now would interrupt you.
+    var isBusy: Bool { mode != .collapsed || working }
+
     init(sessions: SessionStore, usage: UsageStore, settings: Settings) {
         self.sessions = sessions
         self.usage = usage
@@ -203,7 +209,8 @@ final class IslandController: NSObject, ObservableObject {
     func setup() {
         SkyLight.allowCursorChangesInBackground()
         panel = NotchPanel()
-        panel.contentView = FirstMouseHostingView(rootView: IslandRootView(controller: self, sessions: sessions, usage: usage, settings: settings))
+        panel.contentView = FirstMouseHostingView(rootView: IslandRootView(controller: self, sessions: sessions, usage: usage,
+                                                                           settings: settings, updater: updater))
         layout()
         panel.orderFrontRegardless()
 
@@ -510,6 +517,7 @@ final class IslandController: NSObject, ObservableObject {
         mode = .collapsed
         panel.ignoresMouseEvents = true
         releaseKeyboard()
+        updater?.islandClosed()
     }
 
     /// Hands typing back to the app in front (the terminal). The app never activated, so taking the
