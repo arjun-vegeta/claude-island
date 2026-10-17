@@ -54,6 +54,8 @@ final class SessionStore: ObservableObject {
 
     @Published private(set) var sessions: [ClaudeSession] = []
     @Published private(set) var terminalProblem: String?
+    /// Model, effort and context for each chat, by session id, from its transcript.
+    @Published private(set) var details: [String: SessionDetails] = [:]
 
     var onEvent: ((SessionEvent) -> Void)?
     /// Poll Terminal more often while the island is open.
@@ -73,6 +75,10 @@ final class SessionStore: ObservableObject {
     private var terminalBusy = false
     private var lastTerminalRefresh = Date.distantPast
     private var timer: Timer?
+    private let transcripts = TranscriptReader()
+    private let detailsQueue = DispatchQueue(label: "claude-island.details")
+    private var detailsBusy = false
+    private var lastDetailsRefresh = Date.distantPast
 
     func start() {
         pollRegistry()
@@ -83,6 +89,24 @@ final class SessionStore: ObservableObject {
     private func tick() {
         pollRegistry()
         if Date().timeIntervalSince(lastTerminalRefresh) >= (fastTerminalRefresh ? 2 : 6) { refreshTerminal() }
+        if Date().timeIntervalSince(lastDetailsRefresh) >= (fastTerminalRefresh ? 3 : 10) { refreshDetails() }
+    }
+
+    /// Re-reads the transcripts that changed since last time, off the main thread.
+    func refreshDetails() {
+        guard !detailsBusy else { return }
+        lastDetailsRefresh = Date()
+        detailsBusy = true
+        let chats = entries.map { ($0.sessionId, $0.cwd) }
+        detailsQueue.async {
+            var found: [String: SessionDetails] = [:]
+            for (id, cwd) in chats { found[id] = self.transcripts.details(sessionId: id, cwd: cwd) }
+            self.transcripts.keep(Set(chats.map(\.0)))
+            DispatchQueue.main.async {
+                self.detailsBusy = false
+                if self.details != found { self.details = found }
+            }
+        }
     }
 
     func pollRegistry() {

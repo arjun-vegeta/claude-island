@@ -26,16 +26,19 @@ final class Settings: ObservableObject {
     @Published var reorganiseOpensWindows: Bool { didSet { defaults.set(reorganiseOpensWindows, forKey: "reorganiseOpensWindows") } }
     /// How many Terminal windows Reorganise puts on each desktop, tiled: 2, 4 or 6.
     @Published var windowsPerDesktop: Int { didSet { defaults.set(windowsPerDesktop, forKey: "windowsPerDesktop") } }
+    /// Model, effort and context under each chat's name.
+    @Published var showSessionDetails: Bool { didSet { defaults.set(showSessionDetails, forKey: "showSessionDetails") } }
 
     init() {
         defaults.register(defaults: ["popUpOnEvents": true, "playSound": true, "showClawd": true, "showUsage": true,
-                                     "reorganiseOpensWindows": true])
+                                     "reorganiseOpensWindows": true, "showSessionDetails": true])
         popUpOnEvents = defaults.bool(forKey: "popUpOnEvents")
         playSound = defaults.bool(forKey: "playSound")
         showClawd = defaults.bool(forKey: "showClawd")
         showUsage = defaults.bool(forKey: "showUsage")
         reorganiseOpensWindows = defaults.bool(forKey: "reorganiseOpensWindows")
         windowsPerDesktop = Settings.savedWindowsPerDesktop
+        showSessionDetails = defaults.bool(forKey: "showSessionDetails")
     }
 
     var openAtLogin: Bool {

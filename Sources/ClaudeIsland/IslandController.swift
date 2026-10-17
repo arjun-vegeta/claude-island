@@ -17,6 +17,8 @@ enum IslandLayout {
     static let sectionLabel: CGFloat = 24
     static let sectionLabelGap: CGFloat = 6
     static let cardHeight: CGFloat = 50
+    /// Cards and rows grow by a line when they show the chat's model, effort and context.
+    static let detailsLine: CGFloat = 14
     static let cardGap: CGFloat = 8
     static let rowHeight: CGFloat = 30
     static let rowGap: CGFloat = 2
@@ -32,10 +34,10 @@ enum IslandLayout {
     /// The settings page: four sections of two-column rows.
     static let settingsRow: CGFloat = 34
     static let settingsSections = 4
-    static let settingsRows = 5
-    /// Between two rows of the same section (Reorganise has two).
+    static let settingsRows = 6
+    /// Between two rows of the same section (Island and Reorganise have two each).
     static let settingsRowGap: CGFloat = 6
-    static let settingsRowGaps = 1
+    static let settingsRowGaps = 2
     static var settingsHeight: CGFloat {
         CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow
             + CGFloat(settingsRowGaps) * settingsRowGap + listBottom + 1
@@ -367,10 +369,12 @@ final class IslandController: NSObject, ObservableObject {
             let rows = CGFloat((count + 1) / 2)
             return IslandLayout.sectionLabel + IslandLayout.sectionLabelGap + rows * row + (rows - 1) * gap
         }
-        let total = section(working, row: IslandLayout.cardHeight, gap: IslandLayout.cardGap)
-            + section(done, row: IslandLayout.rowHeight, gap: IslandLayout.rowGap)
-            + section(recent, row: IslandLayout.rowHeight, gap: IslandLayout.rowGap)
-            + section(g.idle.count, row: IslandLayout.rowHeight, gap: IslandLayout.rowGap)
+        let extra = settings.showSessionDetails ? IslandLayout.detailsLine : 0
+        let card = IslandLayout.cardHeight + extra, row = IslandLayout.rowHeight + extra
+        let total = section(working, row: card, gap: IslandLayout.cardGap)
+            + section(done, row: row, gap: IslandLayout.rowGap)
+            + section(recent, row: row, gap: IslandLayout.rowGap)
+            + section(g.idle.count, row: row, gap: IslandLayout.rowGap)
             + IslandLayout.listBottom + 1
         return min(total, IslandLayout.maxListHeight)
     }
@@ -485,6 +489,7 @@ final class IslandController: NSObject, ObservableObject {
         toastWork?.cancel()
         sessions.fastTerminalRefresh = true
         sessions.refreshTerminal()
+        sessions.refreshDetails()
         usage.refreshIfStale()
         mode = .expanded
         panel.takesKeyboard = true

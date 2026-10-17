@@ -274,7 +274,7 @@ struct ExpandedView: View {
                         if !working.isEmpty {
                             section("Working", gap: IslandLayout.cardGap) {
                                 ForEach(working) { session in
-                                    WorkingCard(session: session, now: context.date, hovered: isHovered(session)) { controller.focus(session.pid) }
+                                    WorkingCard(session: session, now: context.date, hovered: isHovered(session), details: details(session)) { controller.focus(session.pid) }
                                         .hoverTarget("cell-\(session.pid)")
                                         .id(session.pid)
                                 }
@@ -283,7 +283,7 @@ struct ExpandedView: View {
                         if !done.isEmpty {
                             section("Done", gap: IslandLayout.rowGap) {
                                 ForEach(done) { session in
-                                    SessionRow(session: session, now: context.date, hovered: isHovered(session),
+                                    SessionRow(session: session, now: context.date, hovered: isHovered(session), details: details(session),
                                                waving: controller.waving.contains(session.pid)) { controller.focus(session.pid) }
                                         .hoverTarget("cell-\(session.pid)")
                                         .id(session.pid)
@@ -293,7 +293,7 @@ struct ExpandedView: View {
                         if !recent.isEmpty {
                             section("Recent", gap: IslandLayout.rowGap) {
                                 ForEach(recent) { session in
-                                    SessionRow(session: session, now: context.date, hovered: isHovered(session)) { controller.focus(session.pid) }
+                                    SessionRow(session: session, now: context.date, hovered: isHovered(session), details: details(session)) { controller.focus(session.pid) }
                                         .hoverTarget("cell-\(session.pid)")
                                         .id(session.pid)
                                 }
@@ -302,7 +302,7 @@ struct ExpandedView: View {
                         if !idle.isEmpty {
                             section("Idle", gap: IslandLayout.rowGap) {
                                 ForEach(idle) { session in
-                                    SessionRow(session: session, now: context.date, hovered: isHovered(session)) { controller.focus(session.pid) }
+                                    SessionRow(session: session, now: context.date, hovered: isHovered(session), details: details(session)) { controller.focus(session.pid) }
                                         .hoverTarget("cell-\(session.pid)")
                                         .id(session.pid)
                                 }
@@ -322,6 +322,11 @@ struct ExpandedView: View {
                 }
             }
         }
+    }
+
+    /// The line under a chat's name: "" while it's on but not known yet, so every row keeps one height.
+    private func details(_ session: ClaudeSession) -> String? {
+        settings.showSessionDetails ? sessions.details[session.sessionId]?.text ?? "" : nil
     }
 
     /// Under the pointer, or picked with the keyboard.
@@ -627,6 +632,8 @@ struct WorkingCard: View {
     let session: ClaudeSession
     let now: Date
     let hovered: Bool
+    /// Model, effort and context; nil when that setting is off.
+    let details: String?
     let action: () -> Void
 
     var body: some View {
@@ -647,11 +654,14 @@ struct WorkingCard: View {
                         .font(islandFont(11))
                         .foregroundStyle(session.state == .needsYou ? Color.clay : Color.ink2)
                         .lineLimit(1)
+                    if let details {
+                        DetailsLine(text: details)
+                    }
                 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
-            .frame(height: IslandLayout.cardHeight)
+            .frame(height: IslandLayout.cardHeight + (details == nil ? 0 : IslandLayout.detailsLine))
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.ivory.opacity(hovered ? 0.09 : 0.05)))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(session.state == .needsYou ? Color.clay.opacity(0.45) : Color.ivory.opacity(0.06), lineWidth: 0.5))
@@ -671,6 +681,20 @@ struct WorkingCard: View {
     }
 }
 
+/// "Opus 5.5 · high · 38% of 1M" under a chat's name.
+struct DetailsLine: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(islandFont(10.5))
+            .foregroundStyle(Color.ink3)
+            .monospacedDigit()
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+}
+
 struct CardPress: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -685,6 +709,8 @@ struct SessionRow: View {
     let session: ClaudeSession
     let now: Date
     let hovered: Bool
+    /// Model, effort and context; nil when that setting is off.
+    let details: String?
     /// Just finished (its pop-up fired): Clawd waves where the check would be.
     var waving = false
     let action: () -> Void
@@ -702,19 +728,26 @@ struct SessionRow: View {
                     }
                 }
                 .frame(width: 16)
-                Text(session.name)
-                    .font(islandFont(12.5))
-                    .foregroundStyle(session.recent || session.state == .finished ? Color.ink1 : Color.ivory.opacity(0.72))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: 6)
-                Text(age)
-                    .font(islandFont(11))
-                    .foregroundStyle(Color.ink3)
-                    .monospacedDigit()
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(session.name)
+                            .font(islandFont(12.5))
+                            .foregroundStyle(session.recent || session.state == .finished ? Color.ink1 : Color.ivory.opacity(0.72))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: 6)
+                        Text(age)
+                            .font(islandFont(11))
+                            .foregroundStyle(Color.ink3)
+                            .monospacedDigit()
+                    }
+                    if let details {
+                        DetailsLine(text: details)
+                    }
+                }
             }
             .padding(.horizontal, 8)
-            .frame(height: IslandLayout.rowHeight)
+            .frame(height: IslandLayout.rowHeight + (details == nil ? 0 : IslandLayout.detailsLine))
             .contentShape(Rectangle())
         }
         .buttonStyle(HighlightStyle(hovered: hovered))
