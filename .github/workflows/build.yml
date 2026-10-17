@@ -1,0 +1,16 @@
+# Builds the app on every pull request with the same macOS and Xcode as releases, so a change that
+# only breaks there (an older compiler, say) shows up before a release is tagged.
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build -c release
