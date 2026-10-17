@@ -89,22 +89,48 @@ enum Reorganizer {
 
         let displayRank = Dictionary(uniqueKeysWithValues: displays.enumerated().map { ($1.uuid, $0) })
         return Dictionary(grouping: viewers, by: \.space).values
-            .map { $0.sorted { $0.frame.minX < $1.frame.minX } }
+            .map { $0.sorted(by: gridOrder) }
             .sorted { (displayRank[$0[0].display] ?? 0, $0[0].order) < (displayRank[$1[0].display] ?? 0, $1[0].order) }
     }
 
-    /// Gives every chat a window, two to a desktop. Chats with no window get one, and windows past the
-    /// first two on a crowded desktop move. Each goes beside a lone window first, then onto empty
-    /// desktops of the main display (reached with Ctrl+→, which needs Accessibility). Afterwards you're
+    /// Reading order on a desktop: top row first, each row left to right.
+    static func gridOrder(_ a: Viewer, _ b: Viewer) -> Bool { gridOrder(a.frame, b.frame) }
+    static func gridOrder(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minY - b.minY) > 40 ? a.minY < b.minY : a.minX < b.minX
+    }
+
+    /// Slot `slot` of a desktop laid out for `capacity` windows: 2 side by side, 4 in a 2 × 2 grid, or
+    /// 6 in 2 rows of 3.
+    static func cell(_ visible: CGRect, slot: Int, of capacity: Int) -> CGRect {
+        let columns = capacity == 6 ? 3 : 2
+        let rows = max(1, capacity / columns)
+        let width = (visible.width / CGFloat(columns)).rounded(.down)
+        let height = (visible.height / CGFloat(rows)).rounded(.down)
+        let column = slot % columns, row = slot / columns
+        // The last column and row take the leftover pixels, so the grid fills the screen exactly.
+        let x = visible.minX + CGFloat(column) * width
+        let y = visible.minY + CGFloat(row) * height
+        return CGRect(x: x, y: y, width: column == columns - 1 ? visible.maxX - x : width,
+                      height: row == rows - 1 ? visible.maxY - y : height)
+    }
+
+    /// Bounds for `windows`, in reading order, filling a desktop's slots from the top left.
+    static func tile(_ windows: [Int], on visible: CGRect, capacity: Int) -> [(windowID: Int, bounds: CGRect)] {
+        windows.prefix(capacity).enumerated().map { ($1, cell(visible, slot: $0, of: capacity)) }
+    }
+
+    /// Gives every chat a window, `capacity` to a desktop. Chats with no window get one, and windows past
+    /// the first `capacity` on a crowded desktop move. Each goes onto a desktop with room first, then onto
+    /// empty desktops of the main display (reached with Ctrl+→, which needs Accessibility). Afterwards you're
     /// taken back to the desktop you started on. Returns how many windows opened and a note about
     /// anything left over. Blocking: call off the main thread.
-    static func spreadOut(screens: [ScreenInfo]) throws -> (opened: Int, note: String?) {
+    static func spreadOut(screens: [ScreenInfo], capacity: Int) throws -> (opened: Int, note: String?) {
         var groups = try desktopGroups()
         let shown = Set(Tmux.clients().map(\.session))
         var waiting: [(session: String, oldWindow: Int?)] = Tmux.sessionNames().filter { !shown.contains($0) }.map { ($0, nil) }
-        for (k, group) in groups.enumerated() where group.count > 2 {
-            waiting += group.dropFirst(2).map { ($0.session, $0.windowID) }
-            groups[k] = Array(group.prefix(2))
+        for (k, group) in groups.enumerated() where group.count > capacity {
+            waiting += group.dropFirst(capacity).map { ($0.session, $0.windowID) }
+            groups[k] = Array(group.prefix(capacity))
         }
         guard !waiting.isEmpty else { return (0, nil) }
 
@@ -143,28 +169,31 @@ enum Reorganizer {
             "macOS didn't switch desktops, so \(waiting.count) chat\(waiting.count == 1 ? "" : "s") still \(waiting.count == 1 ? "has" : "have") no window"
         }
 
-        // Beside lone windows.
-        for group in groups where group.count == 1 && !waiting.isEmpty {
+        // Onto desktops with room.
+        for group in groups where group.count < capacity && !waiting.isEmpty {
             let anchor = group[0]
             guard let display = displays.first(where: { $0.uuid == anchor.display }) ?? displays.first,
                   let visible = screen(for: anchor.display)?.visible,
                   Desktops.go(to: anchor.space, on: display, windows: [(anchor.windowID, anchor.space)]) else { return (opened, switchFailed) }
-            let item = waiting.removeFirst()
-            switch place(item, on: anchor.space) {
-            case .here(let id):
-                opened += 1
-                let anchorOnLeft = anchor.frame.midX < visible.midX
-                try? TerminalBridge.setBounds([(anchor.windowID, half(visible, right: !anchorOnLeft)), (id, half(visible, right: anchorOnLeft))])
-            case .elsewhere:
-                if item.oldWindow == nil { opened += 1 }
-                return (opened, switchFailed)
-            case .failed:
-                return (opened, "Couldn't open a window for \(item.session)")
+            var here = group.map(\.windowID)
+            defer { try? TerminalBridge.setBounds(tile(here, on: visible, capacity: capacity)) }
+            while here.count < capacity, !waiting.isEmpty {
+                let item = waiting.removeFirst()
+                switch place(item, on: anchor.space) {
+                case .here(let id):
+                    opened += 1
+                    here.append(id)
+                case .elsewhere:
+                    if item.oldWindow == nil { opened += 1 }
+                    return (opened, switchFailed)
+                case .failed:
+                    return (opened, "Couldn't open a window for \(item.session)")
+                }
             }
         }
         guard !waiting.isEmpty else { return (opened, nil) }
 
-        // Then empty desktops, two windows each.
+        // Then empty desktops, `capacity` windows each.
         guard Desktops.canPressKeys(ask: true) else {
             return (opened, "Allow Claude Island in System Settings › Privacy & Security › Accessibility, then Reorganise again to give \(waiting.count) more chat\(waiting.count == 1 ? "" : "s") a window")
         }
@@ -175,7 +204,8 @@ enum Reorganizer {
         for desktop in display.desktops where !busy.contains(desktop.id) && !waiting.isEmpty {
             guard Desktops.go(to: desktop.id, on: display, windows: jumps) else { return (opened, switchFailed) }
             var here: [Int] = []
-            while here.count < 2, !waiting.isEmpty {
+            defer { try? TerminalBridge.setBounds(tile(here, on: visible, capacity: capacity)) }
+            while here.count < capacity, !waiting.isEmpty {
                 let item = waiting.removeFirst()
                 switch place(item, on: desktop.id) {
                 case .here(let id): here.append(id); opened += 1
@@ -186,25 +216,25 @@ enum Reorganizer {
                     return (opened, "Couldn't open a window for \(item.session)")
                 }
             }
-            try? TerminalBridge.setBounds(here.enumerated().map { ($1, half(visible, right: $0 == 1)) })
         }
         guard waiting.isEmpty else {
-            return (opened, "No empty desktops left: add \((waiting.count + 1) / 2) in Mission Control, then Reorganise again")
+            let needed = (waiting.count + capacity - 1) / capacity
+            return (opened, "No empty desktops left: add \(needed) in Mission Control, then Reorganise again")
         }
         return (opened, nil)
     }
 
-    /// Makes every desktop (except perhaps the last) hold two windows. A desktop with one window gets
-    /// a window from the last desktops: a new window opens beside it showing the same session, then the
+    /// Fills every desktop (except perhaps the last) to `capacity` windows. A desktop with room gets
+    /// windows from the last desktops: a new window opens there showing the same session, then the
     /// old one closes. The session never stops, since for a moment two windows show it. Returns how
     /// many windows moved. Blocking: call off the main thread.
     @discardableResult
-    static func pairUp(screens: [ScreenInfo]) throws -> Int {
+    static func pairUp(screens: [ScreenInfo], capacity: Int) throws -> Int {
         var groups = try desktopGroups()
         var moved = 0
         var i = 0, j = groups.count - 1
         while i < j {
-            if groups[i].count >= 2 { i += 1; continue }
+            if groups[i].count >= capacity { i += 1; continue }
             if groups[j].isEmpty { j -= 1; continue }
             let anchor = groups[i][0]
             let donor = groups[j].removeLast()
@@ -228,9 +258,7 @@ enum Reorganizer {
                 break
             }
 
-            let anchorOnLeft = anchor.frame.midX < screen.visible.midX
-            try TerminalBridge.setBounds([(anchor.windowID, half(screen.visible, right: !anchorOnLeft)),
-                                          (newWindow, half(screen.visible, right: anchorOnLeft))])
+            try TerminalBridge.setBounds(tile(groups[i].map(\.windowID) + [newWindow], on: screen.visible, capacity: capacity))
             try TerminalBridge.close(windowID: donor.windowID)
             groups[i].append(donor)
             moved += 1
@@ -239,7 +267,7 @@ enum Reorganizer {
     }
 
     /// Blocking (AppleScript + tmux): call off the main thread.
-    static func plan(sessions: [ClaudeSession], screens: [ScreenInfo]) throws -> ReorgPlan {
+    static func plan(sessions: [ClaudeSession], screens: [ScreenInfo], capacity: Int) throws -> ReorgPlan {
         let desktops = try desktopGroups()
         let slotIndex = Dictionary(desktops.joined().enumerated().map { ($1.session, $0) }, uniquingKeysWith: min)
 
@@ -254,18 +282,18 @@ enum Reorganizer {
             return (slotIndex[a.tmuxSession!] ?? .max) < (slotIndex[b.tmuxSession!] ?? .max)
         }
 
-        // Running sessions go to the first desktops with two windows, so they sit in pairs.
+        // Running sessions go to the first desktops with at least two windows, so none sits alone.
         let activeCount = ranked.filter(\.isActive).count
-        let pairDesktops = desktops.filter { $0.count >= 2 }.prefix((activeCount + 1) / 2)
-        let first = pairDesktops.flatMap { $0.prefix(2) }
+        var first: [Viewer] = []
+        for group in desktops where group.count >= 2 && first.count < activeCount { first += group.prefix(capacity) }
         let firstIDs = Set(first.map(\.windowID))
         let slots = first + desktops.joined().filter { !firstIDs.contains($0.windowID) }
         let assignments = zip(slots, ranked).map { (viewer: $0, session: $1.tmuxSession!) }
 
         var bounds: [(windowID: Int, bounds: CGRect)] = []
-        for group in desktops where group.count <= 2 {
+        for group in desktops where group.count <= capacity {
             guard let screen = screens.first(where: { $0.uuid == group[0].display }) ?? screens.first(where: \.isMain) else { continue }
-            for (slot, viewer) in group.enumerated() { bounds.append((viewer.windowID, half(screen.visible, right: slot == 1))) }
+            bounds += tile(group.map(\.windowID), on: screen.visible, capacity: capacity)
         }
 
         var notes: [String] = []
@@ -289,25 +317,19 @@ enum Reorganizer {
     }
 
     /// Opens a new Terminal window on this desktop running Claude Code inside tmux. If the desktop has
-    /// one Terminal window, the new one takes the free half. Blocking: call off the main thread.
-    static func openNewChat(screens: [ScreenInfo]) throws {
+    /// room in its layout, the new window takes the next free slot. Blocking: call off the main thread.
+    static func openNewChat(screens: [ScreenInfo], capacity: Int) throws {
         let active = SkyLight.activeSpace()
         let here = (try? TerminalBridge.listWindows())?.filter {
             !$0.miniaturized && SkyLight.spaces(forWindow: CGWindowID($0.id)) == [active]
         } ?? []
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         guard let id = try TerminalBridge.openWindow(running: shellQuote(Tmux.launcher), in: home),
-              here.count == 1 else { return }
+              (1..<capacity).contains(here.count) else { return }
         let display = SkyLight.displays().first { $0.spaces.contains { $0.id == active } }?.uuid
         guard let screen = screens.first(where: { $0.uuid == display }) ?? screens.first(where: \.isMain) else { return }
-        let other = here[0]
-        let rightIsFree = other.bounds.midX < screen.visible.midX
-        try TerminalBridge.setBounds([(other.id, half(screen.visible, right: !rightIsFree)), (id, half(screen.visible, right: rightIsFree))])
-    }
-
-    private static func half(_ visible: CGRect, right: Bool) -> CGRect {
-        let width = (visible.width / 2).rounded(.down)
-        return CGRect(x: right ? visible.maxX - width : visible.minX, y: visible.minY, width: width, height: visible.height)
+        let ordered = here.sorted { gridOrder($0.bounds, $1.bounds) }.map(\.id)
+        try TerminalBridge.setBounds(tile(ordered + [id], on: screen.visible, capacity: capacity))
     }
 }
 

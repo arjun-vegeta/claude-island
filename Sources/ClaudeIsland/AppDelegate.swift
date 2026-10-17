@@ -2,7 +2,19 @@ import AppKit
 import ServiceManagement
 
 final class Settings: ObservableObject {
-    private let defaults = UserDefaults.standard
+    /// The app's own preferences. The command-line tool runs without a bundle, so it names the domain.
+    static let defaults = Bundle.main.bundleIdentifier == nil
+        ? UserDefaults(suiteName: "com.arjun.claude-island") ?? .standard : .standard
+    private let defaults = Settings.defaults
+
+    /// Window layouts Reorganise can use: 2 side by side, a 2 × 2 grid, or 2 rows of 3.
+    static let layouts = [2, 4, 6]
+
+    /// Windows per desktop as saved, for code that runs without a Settings object (the CLI).
+    static var savedWindowsPerDesktop: Int {
+        let n = defaults.integer(forKey: "windowsPerDesktop")
+        return layouts.contains(n) ? n : 2
+    }
 
     @Published var popUpOnEvents: Bool { didSet { defaults.set(popUpOnEvents, forKey: "popUpOnEvents") } }
     @Published var playSound: Bool { didSet { defaults.set(playSound, forKey: "playSound") } }
@@ -12,6 +24,8 @@ final class Settings: ObservableObject {
     @Published var showUsage: Bool { didSet { defaults.set(showUsage, forKey: "showUsage") } }
     /// Reorganise opens windows so every chat has one, two per desktop.
     @Published var reorganiseOpensWindows: Bool { didSet { defaults.set(reorganiseOpensWindows, forKey: "reorganiseOpensWindows") } }
+    /// How many Terminal windows Reorganise puts on each desktop, tiled: 2, 4 or 6.
+    @Published var windowsPerDesktop: Int { didSet { defaults.set(windowsPerDesktop, forKey: "windowsPerDesktop") } }
 
     init() {
         defaults.register(defaults: ["popUpOnEvents": true, "playSound": true, "showClawd": true, "showUsage": true,
@@ -21,6 +35,7 @@ final class Settings: ObservableObject {
         showClawd = defaults.bool(forKey: "showClawd")
         showUsage = defaults.bool(forKey: "showUsage")
         reorganiseOpensWindows = defaults.bool(forKey: "reorganiseOpensWindows")
+        windowsPerDesktop = Settings.savedWindowsPerDesktop
     }
 
     var openAtLogin: Bool {
