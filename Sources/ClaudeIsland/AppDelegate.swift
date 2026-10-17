@@ -6,11 +6,21 @@ final class Settings: ObservableObject {
 
     @Published var popUpOnEvents: Bool { didSet { defaults.set(popUpOnEvents, forKey: "popUpOnEvents") } }
     @Published var playSound: Bool { didSet { defaults.set(playSound, forKey: "playSound") } }
+    /// Clawd beside the notch while the island is closed.
+    @Published var showClawd: Bool { didSet { defaults.set(showClawd, forKey: "showClawd") } }
+    /// The 5-hour and weekly meters at the top of the island.
+    @Published var showUsage: Bool { didSet { defaults.set(showUsage, forKey: "showUsage") } }
+    /// Reorganise opens windows so every chat has one, two per desktop.
+    @Published var reorganiseOpensWindows: Bool { didSet { defaults.set(reorganiseOpensWindows, forKey: "reorganiseOpensWindows") } }
 
     init() {
-        defaults.register(defaults: ["popUpOnEvents": true, "playSound": true])
+        defaults.register(defaults: ["popUpOnEvents": true, "playSound": true, "showClawd": true, "showUsage": true,
+                                     "reorganiseOpensWindows": true])
         popUpOnEvents = defaults.bool(forKey: "popUpOnEvents")
         playSound = defaults.bool(forKey: "playSound")
+        showClawd = defaults.bool(forKey: "showClawd")
+        showUsage = defaults.bool(forKey: "showUsage")
+        reorganiseOpensWindows = defaults.bool(forKey: "reorganiseOpensWindows")
     }
 
     var openAtLogin: Bool {

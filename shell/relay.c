@@ -70,7 +70,10 @@ static int copy_file(const char *from, const char *to) {
 }
 
 static int is_plain(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strchr("._/-+@:,=%", c);
+    // Bytes of non-ASCII characters (like the narrow space before "PM" in screenshot names) pass through
+    // as they are: a backslash before each byte would break the character.
+    return (unsigned char)c >= 0x80 || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+           strchr("._/-+@:,=%", c);
 }
 
 // Rewrites dropped TemporaryItems paths in `in` (n bytes) into `out`; returns the new length.

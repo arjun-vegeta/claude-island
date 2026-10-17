@@ -29,6 +29,13 @@ enum IslandLayout {
     static let noteHeight: CGFloat = 22
     /// The search line that appears when you type with the island open.
     static let searchHeight: CGFloat = 40
+    /// The settings page: four sections of two-column rows.
+    static let settingsRow: CGFloat = 34
+    static let settingsSections = 4
+    static let settingsRows = 4
+    static var settingsHeight: CGFloat {
+        CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow + listBottom + 1
+    }
 }
 
 struct NotchGeometry: Equatable {
@@ -90,6 +97,17 @@ final class IslandController: NSObject, ObservableObject {
     @Published private(set) var note: String?
     /// Showing the "restart these sessions inside tmux?" question in the footer.
     @Published var confirmingMove = false
+    /// The island shows the settings page instead of the sessions.
+    @Published var showingSettings = false {
+        willSet {
+            // The island takes the new page's height, which may be shorter. The pointer is still on the
+            // button you just clicked, now below the island; keep it open until the pointer gets back in.
+            if newValue != showingSettings, mode == .expanded { holdHeight = max(holdHeight, islandSize.height) }
+        }
+    }
+    /// Height (from the top of the notch) the pointer may be within and keep the island open, after
+    /// switching to a shorter page. Nothing is drawn there. Cleared once the pointer is in the island.
+    private var holdHeight: CGFloat = 0
     /// Clawd dances in the corner for a moment after a Reorganise that changed something.
     @Published private(set) var celebrating = false
     /// Which side of the notch Clawd lurks on. Between loops he sometimes walks to the other side,
@@ -353,17 +371,29 @@ final class IslandController: NSObject, ObservableObject {
         return min(total, IslandLayout.maxListHeight)
     }
 
+    /// The meters, plus the "Last checked" line when the latest check failed; nothing when they're turned off.
+    var usageHeight: CGFloat {
+        settings.showUsage ? IslandLayout.usageHeight + (usage.isStale ? IslandLayout.staleLine : 0) : 0
+    }
+
+    /// Everything between the header and the footer on the sessions page.
+    private var sessionsPageHeight: CGFloat {
+        let banner = sessions.terminalProblem == nil ? 0 : IslandLayout.bannerHeight
+        let noteLine = note == nil ? 0 : IslandLayout.noteHeight
+        let search = query.isEmpty ? 0 : IslandLayout.searchHeight
+        return usageHeight + banner + search + listHeight + noteLine
+    }
+
+    var settingsPageHeight: CGFloat { IslandLayout.settingsHeight }
+
     var islandSize: CGSize {
         switch mode {
         case .collapsed:
             // Just the notch; Clawd lurks outside the black shape, on the bare menu bar.
             return CGSize(width: geometry.notchWidth + IslandLayout.ear * 2, height: geometry.notchHeight)
         case .expanded:
-            let banner = sessions.terminalProblem == nil ? 0 : IslandLayout.bannerHeight
-            let noteLine = note == nil ? 0 : IslandLayout.noteHeight
-            let search = query.isEmpty ? 0 : IslandLayout.searchHeight
             return CGSize(width: IslandLayout.expandedWidth,
-                          height: geometry.notchHeight + IslandLayout.usageHeight + (usage.isStale ? IslandLayout.staleLine : 0) + banner + search + listHeight + noteLine + IslandLayout.footerHeight)
+                          height: geometry.notchHeight + (showingSettings ? settingsPageHeight : sessionsPageHeight) + IslandLayout.footerHeight)
         case .toast, .working:
             return CGSize(width: IslandLayout.toastWidth, height: geometry.notchHeight + IslandLayout.toastBody)
         }
@@ -406,7 +436,10 @@ final class IslandController: NSObject, ObservableObject {
                 hoveringToast = inside
             }
         case .expanded:
-            if islandRect.insetBy(dx: -2, dy: -2).contains(p) {
+            if islandRect.contains(p) { holdHeight = 0 }
+            var keepOpen = islandRect
+            if holdHeight > keepOpen.height { keepOpen = NSRect(x: keepOpen.minX, y: keepOpen.maxY - holdHeight, width: keepOpen.width, height: holdHeight) }
+            if keepOpen.insetBy(dx: -2, dy: -2).contains(p) {
                 collapseWork?.cancel()
                 collapseWork = nil
             } else if collapseWork == nil {
@@ -463,6 +496,9 @@ final class IslandController: NSObject, ObservableObject {
         if mode == .expanded { waving.removeAll() }
         hovered = nil
         confirmingMove = false
+        // Opening the island again always starts on the sessions, not settings.
+        showingSettings = false
+        holdHeight = 0
         query = ""
         selectedPid = nil
         sessions.fastTerminalRefresh = false
@@ -530,6 +566,11 @@ final class IslandController: NSObject, ObservableObject {
     private func handleKey(_ event: NSEvent) -> Bool {
         guard mode == .expanded, !confirmingMove else { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if showingSettings {
+            // No search on the settings page: Esc goes back to the sessions, ⌘ shortcuts work as usual.
+            if event.keyCode == 53 { showingSettings = false }
+            return !flags.contains(.command) || event.keyCode == 53
+        }
         switch event.keyCode {
         case 53:   // Esc
             if query.isEmpty { collapse() } else { setQuery("") }
@@ -642,12 +683,13 @@ final class IslandController: NSObject, ObservableObject {
     func reorganise() {
         let list = sessions.sessions
         let screens = ScreenInfo.all()
+        let opensWindows = settings.reorganiseOpensWindows
         show(note: "Reorganising…")
         DispatchQueue.global(qos: .userInitiated).async {
             var message: String
             var switched = 0
             do {
-                let spread = try Reorganizer.spreadOut(screens: screens)
+                let spread = opensWindows ? try Reorganizer.spreadOut(screens: screens) : (opened: 0, note: nil)
                 let paired = try Reorganizer.pairUp(screens: screens)
                 (message, switched) = try Reorganizer.execute(Reorganizer.plan(sessions: list, screens: screens))
                 if paired > 0 { message = "Paired up \(paired) window\(paired == 1 ? "" : "s") · " + message }
