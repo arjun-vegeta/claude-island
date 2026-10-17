@@ -29,7 +29,7 @@ A Dynamic Island for Claude Code on a notched MacBook. Hover over the notch to s
 
 Each Claude session runs inside its own tmux session, and each Terminal window shows one of them. Settings › Windows per desktop picks the layout: 2 side by side (the default), 4 in a 2 × 2 grid, or 6 in 2 rows of 3. First, Reorganise makes sure every chat has a window, filling each desktop's layout:
 
-- A chat with no window gets one, and a desktop with more windows than its layout gives up the extras.
+- A desktop with more windows than its layout gives up the extras, for example after switching from 4 per desktop to 2. A chat with no window gets one too, unless Settings › Open windows for chats without one is off.
 - They go onto desktops with room first, then onto empty desktops (ones with no app windows at all). It walks to an empty desktop by pressing Ctrl+→, so it needs Claude Island allowed under Accessibility; macOS asks the first time. If there aren't enough empty desktops, it says how many to add in Mission Control.
 - You're taken back to the desktop you started on.
 

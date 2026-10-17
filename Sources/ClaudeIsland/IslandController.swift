@@ -696,7 +696,7 @@ final class IslandController: NSObject, ObservableObject {
             var message: String
             var switched = 0
             do {
-                let spread = opensWindows ? try Reorganizer.spreadOut(screens: screens, capacity: capacity) : (opened: 0, note: nil)
+                let spread = try Reorganizer.spreadOut(screens: screens, capacity: capacity, openMissing: opensWindows)
                 let paired = try Reorganizer.pairUp(screens: screens, capacity: capacity)
                 (message, switched) = try Reorganizer.execute(Reorganizer.plan(sessions: list, screens: screens, capacity: capacity))
                 if paired > 0 { message = "Paired up \(paired) window\(paired == 1 ? "" : "s") · " + message }

@@ -67,7 +67,8 @@ enum CLI {
             print(plan.description)
             print("\(plan.changes.count) window(s) would switch session")
             if execute {
-                let spread = try Reorganizer.spreadOut(screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop)
+                let spread = try Reorganizer.spreadOut(screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop,
+                                                       openMissing: Settings.savedOpensWindows)
                 print("opened \(spread.opened) window(s)" + (spread.note.map { " · " + $0 } ?? ""))
                 let paired = try Reorganizer.pairUp(screens: ScreenInfo.all(), capacity: Settings.savedWindowsPerDesktop)
                 print("paired up \(paired) window(s)")
