@@ -9,6 +9,7 @@ A Dynamic Island for Claude Code on a notched MacBook. Hover over the notch to s
   - **Done:** finished but not opened yet, with a check (or a waving Clawd right after its pop-up). They stay here, however long ago they finished, until you open them.
   - **Recent:** finished within the last 6 hours and already seen: the ones you're in the middle of.
   - **Idle:** untouched for more than 6 hours, as slim rows with how long it's been.
+- **Model, effort and context** under each chat's name, for example "Opus 5.5 · high · 38% of 1M", from the chat's latest reply. Claude Code records the model, effort and token counts with every reply in the chat's transcript (`~/.claude/projects/…/<session id>.jsonl`); the island reads the end of it when it changes. The context window is 1M for current models and 200k for older ones, as Claude Code's docs give it. Right after `/compact` the percentage is left out until the next reply. Turn it off in Settings.
 - **Type to search** while the island is open: sessions narrow to those whose name or folder matches. Enter opens the selected one (the top match unless you've moved the selection), arrows move the selection, Esc clears the search, then closes the island. Typing goes back to Terminal when the island closes.
 - **Click a session** to jump to its window. A session with no window open ("hidden") gets a new window.
 - **Usage:** your 5-hour and weekly limits, with reset times. Same numbers as `/usage`.
@@ -67,6 +68,7 @@ python3 -c "import json,os;p=os.path.expanduser('~/.claude.json');c=json.load(op
 Everything comes from the `claude` binary and tools on this Mac:
 
 - **Sessions and their status:** `~/.claude/sessions/<pid>.json`, which Claude Code keeps up to date itself.
+- **Model, effort and context:** the latest reply in each chat's transcript, which Claude Code writes as it goes.
 - **Usage:** `claude -p` started in SDK mode and sent a `get_usage` control request, the same data `/usage` shows. No prompt is sent, so it uses no tokens.
 - **Windows:**
   - Terminal's AppleScript gives the windows, tabs and ttys.

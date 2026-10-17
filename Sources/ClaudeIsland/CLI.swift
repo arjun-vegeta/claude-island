@@ -40,10 +40,12 @@ enum CLI {
     }
 
     private static func list(_ store: SessionStore) {
+        let transcripts = TranscriptReader()
         for s in store.sessions {
             let place = s.desktop.map { "D\($0)" } ?? (s.onScreen ? "D?" : "hidden")
             print(String(format: "%-9@ %6d  %-7@ %-22@ %@  (%@)", "\(s.state)" as NSString, s.pid, place as NSString,
                          (s.tmuxSession ?? "not in tmux") as NSString, s.name as NSString, s.folder as NSString))
+            if let details = transcripts.details(sessionId: s.sessionId, cwd: s.cwd) { print("          " + details.text) }
         }
     }
 

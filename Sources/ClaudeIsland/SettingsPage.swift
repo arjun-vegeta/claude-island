@@ -19,10 +19,16 @@ struct SettingsPage: View {
                            help: "A chime when a chat finishes, and another when one needs you")
                 }
                 section("Island") {
-                    toggle("clawd", "Clawd beside the notch", $settings.showClawd,
-                           help: "Clawd lurks, dances and waves next to the notch while the island is closed")
-                    toggle("usage", "Plan usage", $settings.showUsage,
-                           help: "Your 5-hour and weekly limits at the top of the island")
+                    VStack(spacing: IslandLayout.settingsRowGap) {
+                        HStack(spacing: 8) {
+                            toggle("clawd", "Clawd beside the notch", $settings.showClawd,
+                                   help: "Clawd lurks, dances and waves next to the notch while the island is closed")
+                            toggle("usage", "Plan usage", $settings.showUsage,
+                                   help: "Your 5-hour and weekly limits at the top of the island")
+                        }
+                        toggle("details", "Model, effort and context under each chat", $settings.showSessionDetails,
+                               help: "From each chat's latest reply, for example “Opus 5.5 · high · 38% of 1M”")
+                    }
                 }
                 section("Reorganise") {
                     VStack(spacing: IslandLayout.settingsRowGap) {
