@@ -1,0 +1,23 @@
+#!/bin/zsh
+# Starts Claude Code inside Claude Island's tmux server, in this Terminal window.
+# Arguments go straight to claude, e.g. `claude-tmux --resume Q_AUTO`.
+here=${0:A:h}
+tmux=${commands[tmux]:-/opt/homebrew/bin/tmux}
+
+# tmux starts panes with the server's environment, so hand this shell's environment over.
+envfile=$(mktemp -t claude-island-env) || exit 1
+export -p | grep -vE '^(export|typeset -x) (TERM|TERM_PROGRAM|TERM_PROGRAM_VERSION|TERM_SESSION_ID|TMUX|TMUX_PANE|SHLVL|COLUMNS|LINES)=' >| $envfile
+
+# Start the session in the background at this window's size, then attach to it. Terminal titles the
+# window with the running command, so this keeps it to "tmux -L claude-island attach -t =claude-3".
+size=(${(s: :)$(stty size 2>/dev/null)})
+n=1
+until $tmux -L claude-island -f $here/tmux.conf new-session -d -s "claude-$n" -c "$PWD" -x ${size[2]:-120} -y ${size[1]:-40} \
+    /bin/zsh -c 'source "$1"; rm -f "$1"; shift; exec claude "$@"' claude-island $envfile "$@" 2>/dev/null; do
+  (( n++ > 99 )) && { echo "claude-tmux: couldn't start a tmux session" >&2; exit 1; }
+done
+# Attach through the relay (relay.c), so screenshots dragged in from the preview reach Claude.
+find ~/Library/Caches/claude-island-drops -type f -mtime +7 -delete 2>/dev/null
+relay=$here/relay/tmux
+[[ -x $relay ]] || relay=
+exec $relay $tmux -L claude-island attach -t "=claude-$n"

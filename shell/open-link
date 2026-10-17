@@ -1,0 +1,27 @@
+#!/bin/zsh
+# Opens the web link under a click in a Claude Island tmux pane. tmux catches clicks for its mouse
+# mode (and passes them on to Claude), so Terminal never sees them and can't open links itself.
+#
+# Called by tmux.conf with MOUSE_LINK (an OSC 8 hyperlink under the click, if any), MOUSE_LINE (the
+# text of the clicked line) and MOUSE_X (the clicked column, from 0).
+
+link=$MOUSE_LINK
+if [[ -z $link ]]; then
+    # A plain-text URL: find the one on the line that covers the clicked column.
+    re='https?://[^][:space:]<>"`'"'"'()]+'
+    line=$MOUSE_LINE
+    pos=0
+    while [[ ${line[pos+1,-1]} =~ $re ]]; do
+        start=$(( pos + MBEGIN - 1 )) end=$(( pos + MEND - 1 ))
+        if (( MOUSE_X >= start && MOUSE_X <= end )); then
+            link=$MATCH
+            break
+        fi
+        pos=$(( pos + MEND ))
+    done
+fi
+
+# Web links only, without the full stop or comma a sentence puts after them.
+[[ $link == http(s|)://* ]] || exit 0
+while [[ $link == *[.,\;:!?] ]]; do link=${link%?}; done
+open "$link"

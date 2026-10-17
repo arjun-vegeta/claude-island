@@ -1,0 +1,5 @@
+# Build output
+.build/
+build/
+shell/relay/
+.DS_Store
