@@ -52,7 +52,7 @@ To start it automatically, turn on **Open at login** in its settings.
 
 ## Updating
 
-Run the install command again.
+Claude Island updates itself. It checks for a new version when it starts and then once a day, and installs it the next time the island is closed. Restarting the app doesn't touch your chats. To update by hand instead, turn off **Update automatically** in settings, where a new version then shows up as **Install**, with a dot on the gear. Running the install command again also updates it.
 
 ## Uninstalling
 
