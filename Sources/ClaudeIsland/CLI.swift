@@ -15,6 +15,7 @@ enum CLI {
         case "list": list(loadedStore())
         case "usage": usage()
         case "plan": reorganise(execute: false)
+        case "desktops": desktops()
         case "reorganise", "reorganize": reorganise(execute: true)
         case "move-to-tmux" where args.count == 2: moveToTmux(pid: Int32(args[1]) ?? 0)
         case "demo":
@@ -64,6 +65,8 @@ enum CLI {
             print(plan.description)
             print("\(plan.changes.count) window(s) would switch session")
             if execute {
+                let spread = try Reorganizer.spreadOut(screens: ScreenInfo.all())
+                print("opened \(spread.opened) window(s)" + (spread.note.map { " · " + $0 } ?? ""))
                 let paired = try Reorganizer.pairUp(screens: ScreenInfo.all())
                 print("paired up \(paired) window(s)")
                 let fresh = try Reorganizer.plan(sessions: loadedStore().sessions, screens: ScreenInfo.all())
@@ -72,6 +75,21 @@ enum CLI {
         } catch {
             print("error: \(error.localizedDescription)")
         }
+    }
+
+    /// Each desktop, whether something's open on it, and which chats its windows show.
+    private static func desktops() {
+        let busy = Desktops.occupied()
+        let viewers: [Viewer] = ((try? Reorganizer.desktopGroups()) ?? []).flatMap { $0 }
+        let hidden = Set(Tmux.sessionNames()).subtracting(Tmux.clients().map(\.session)).sorted()
+        for display in SkyLight.displays() {
+            for (n, desktop) in display.desktops.enumerated() {
+                let here = viewers.filter { $0.space == desktop.id }.map(\.session)
+                print("Desktop \(n + 1)\(desktop.id == display.current ? " (current)" : ""): \(busy.contains(desktop.id) ? "in use" : "empty")  \(here.joined(separator: " "))")
+            }
+        }
+        print("No window: \(hidden.isEmpty ? "none" : hidden.joined(separator: " "))")
+        print("Accessibility: \(Desktops.canPressKeys(ask: false) ? "allowed" : "not allowed")")
     }
 
     private static func moveToTmux(pid: Int32) {

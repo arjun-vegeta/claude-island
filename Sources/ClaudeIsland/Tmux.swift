@@ -77,6 +77,14 @@ enum Tmux {
         return "/dev/" + String(cString: name)
     }
 
+    /// Every session on the server, oldest first.
+    static func sessionNames() -> [String] {
+        rows(["list-sessions", "-F", "#{session_created}\t#{session_name}"])
+            .filter { $0.count >= 2 }
+            .sorted { (Int($0[0]) ?? 0) < (Int($1[0]) ?? 0) }
+            .map { $0[1] }
+    }
+
     /// Points each client at its new session, all in one tmux call.
     static func switchClients(_ moves: [(clientTTY: String, session: String)]) -> Bool {
         guard !moves.isEmpty else { return true }
