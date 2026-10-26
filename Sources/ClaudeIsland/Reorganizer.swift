@@ -67,7 +67,16 @@ enum Reorganizer {
     /// Terminal windows showing tmux sessions, grouped by desktop in Mission Control order, each
     /// group left to right. Blocking (AppleScript + tmux): call off the main thread.
     static func desktopGroups() throws -> [[Viewer]] {
-        let clients = Tmux.clients()
+        var clients = Tmux.clients()
+        if clients.isEmpty, !Tmux.panes().isEmpty {
+            // Chats are running in tmux, so an empty answer means tmux didn't answer properly: ask again
+            // before saying anything (a failed call is logged, see Tmux.log).
+            usleep(300_000)
+            clients = Tmux.clients()
+            guard !clients.isEmpty else {
+                throw ReorgError.nothing("Couldn't read your Terminal windows from tmux. Try again in a moment.")
+            }
+        }
         guard !clients.isEmpty else {
             throw ReorgError.nothing("None of your sessions run in tmux yet. Press “Move into tmux” first.")
         }
