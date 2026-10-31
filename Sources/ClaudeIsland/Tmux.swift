@@ -40,13 +40,39 @@ enum Tmux {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
         process.arguments = ["-L", socket] + args
-        let out = Pipe()
+        let out = Pipe(), err = Pipe()
         process.standardOutput = out
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
+        process.standardError = err
+        do { try process.run() } catch {
+            log(args, "couldn't start \(binary): \(error.localizedDescription)")
+            return nil
+        }
         let data = out.fileHandleForReading.readDataToEndOfFile()
+        let message = err.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
+        guard process.terminationStatus == 0 else {
+            log(args, "exit \(process.terminationStatus): " + String(decoding: message, as: UTF8.self))
+            return nil
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Failed tmux calls go to ~/Library/Logs/Claude Island/tmux.log, so a "not in tmux" has a reason.
+    private static let logQueue = DispatchQueue(label: "tmux-log")
+    private static func log(_ args: [String], _ problem: String) {
+        let line = "\(Date()) tmux \(args.joined(separator: " ")) → \(problem.trimmingCharacters(in: .whitespacesAndNewlines))\n"
+        logQueue.async {
+            let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Claude Island")
+            let file = folder.appendingPathComponent("tmux.log")
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            if let handle = try? FileHandle(forWritingTo: file) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: Data(line.utf8))
+            } else {
+                try? Data(line.utf8).write(to: file)
+            }
+        }
     }
 
     static func panes() -> [Pane] {
