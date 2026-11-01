@@ -39,7 +39,9 @@ enum Tmux {
         guard let binary else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
-        process.arguments = ["-L", socket] + args
+        // -u: an app opened from Finder or at login has no LANG, and without one tmux prints the tabs
+        // between these fields as underscores, so every chat would look like it isn't in tmux.
+        process.arguments = ["-u", "-L", socket] + args
         let out = Pipe(), err = Pipe()
         process.standardOutput = out
         process.standardError = err
