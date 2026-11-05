@@ -282,6 +282,12 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    /// Every chat runs in cmux (with none open, the newest one did), so the parts of the island that
+    /// arrange Terminal windows have nothing to do.
+    var onlyCmux: Bool {
+        sessions.isEmpty ? Self.newChatsInCmux : sessions.allSatisfy(\.inCmux)
+    }
+
     /// New chats open where your newest chat runs: in cmux or in Terminal. Saved, so it still holds
     /// when no chat is open.
     static var newChatsInCmux: Bool {

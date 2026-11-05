@@ -7,6 +7,8 @@ struct SettingsPage: View {
     @ObservedObject var usage: UsageStore
     @ObservedObject var settings: Settings
     @ObservedObject var updater: Updater
+    /// Every chat runs in cmux: Reorganise and Terminal setup only concern Terminal, so they're left out.
+    let onlyCmux: Bool
     /// Re-read when the page opens, so a permission granted in System Settings shows up.
     @StateObject private var access = AccessCheck()
     @StateObject private var hook = HookCheck()
@@ -28,24 +30,28 @@ struct SettingsPage: View {
                     toggle("details", "Model, effort and context under each chat", $settings.showSessionDetails,
                            help: "From each chat's latest reply, for example “Opus 5.5 · high · 38% of 1M”")
                 }
-                group("Reorganise") {
-                    layoutPicker
-                    toggle("windows", "Open windows for chats without one", $settings.reorganiseOpensWindows,
-                           help: "Fills each desktop's layout, using empty desktops if needed")
-                    action("access", "Desktop switching", value: access.allowed ? "Allowed" : "Allow…",
-                           highlight: !access.allowed,
-                           help: "Reorganise presses Ctrl+→ to reach empty desktops, which needs Accessibility") {
-                        access.ask()
+                if !onlyCmux {
+                    group("Reorganise") {
+                        layoutPicker
+                        toggle("windows", "Open windows for chats without one", $settings.reorganiseOpensWindows,
+                               help: "Fills each desktop's layout, using empty desktops if needed")
+                        action("access", "Desktop switching", value: access.allowed ? "Allowed" : "Allow…",
+                               highlight: !access.allowed,
+                               help: "Reorganise presses Ctrl+→ to reach empty desktops, which needs Accessibility") {
+                            access.ask()
+                        }
                     }
                 }
                 group("General") {
-                    action("terminal", "Terminal setup", value: hook.hooked ? "Done" : "Set up", highlight: !hook.hooked, first: true,
-                           help: hook.hooked ? "Typing claude in Terminal starts it inside Claude Island"
-                                             : "Adds one line to ~/.zshrc so typing claude in Terminal starts it inside Claude Island") {
-                        hook.setUp()
+                    if !onlyCmux {
+                        action("terminal", "Terminal setup", value: hook.hooked ? "Done" : "Set up", highlight: !hook.hooked, first: true,
+                               help: hook.hooked ? "Typing claude in Terminal starts it inside Claude Island"
+                                                 : "Adds one line to ~/.zshrc so typing claude in Terminal starts it inside Claude Island") {
+                            hook.setUp()
+                        }
                     }
                     toggle("login", "Open at login", Binding(get: { settings.openAtLogin }, set: { settings.openAtLogin = $0 }),
-                           help: "Start Claude Island when you log in")
+                           first: onlyCmux, help: "Start Claude Island when you log in")
                     updatesRow
                     action("refresh", "Check plan usage", value: usage.loading ? "Checking…" : checked(context.date),
                            highlight: false, help: "Check your plan usage now") {

@@ -172,7 +172,7 @@ struct ExpandedView: View {
             header(list)
 
             if controller.showingSettings {
-                SettingsPage(controller: controller, usage: usage, settings: settings, updater: updater)
+                SettingsPage(controller: controller, usage: usage, settings: settings, updater: updater, onlyCmux: sessions.onlyCmux)
                     .frame(height: controller.settingsPageHeight, alignment: .top)
                 Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
                 footer.frame(height: IslandLayout.footerHeight - 1)
@@ -415,7 +415,7 @@ struct ExpandedView: View {
                 Spacer(minLength: 4)
 
                 // Reorganise arranges Terminal windows; cmux keeps its chats in its own sidebar.
-                if !allInCmux {
+                if !sessions.onlyCmux {
                     Button(action: controller.reorganise) {
                         HStack(spacing: 6) {
                             Image(systemName: Settings.layoutSymbol(settings.windowsPerDesktop))
@@ -442,10 +442,6 @@ struct ExpandedView: View {
         }
     }
 
-    /// Every chat runs in cmux, so there are no Terminal windows to reorganise.
-    private var allInCmux: Bool {
-        !sessions.sessions.isEmpty && sessions.sessions.allSatisfy(\.inCmux)
-    }
 }
 
 /// What you've typed, with a blinking caret and how many sessions match.

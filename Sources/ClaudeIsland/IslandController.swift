@@ -31,12 +31,12 @@ enum IslandLayout {
     static let noteHeight: CGFloat = 22
     /// The search line that appears when you type with the island open.
     static let searchHeight: CGFloat = 40
-    /// The settings page: four titled groups of full-width rows, twelve rows in all.
+    /// The settings page: four titled groups of full-width rows, twelve rows in all. With every chat in
+    /// cmux, the Reorganise group (three rows) and Terminal setup are left out.
     static let settingsRow: CGFloat = 36
-    static let settingsSections = 4
-    static let settingsRows = 12
-    static var settingsHeight: CGFloat {
-        CGFloat(settingsSections) * (sectionLabel + sectionLabelGap) + CGFloat(settingsRows) * settingsRow + listBottom + 1
+    static func settingsHeight(onlyCmux: Bool) -> CGFloat {
+        let sections = onlyCmux ? 3 : 4, rows = onlyCmux ? 8 : 12
+        return CGFloat(sections) * (sectionLabel + sectionLabelGap) + CGFloat(rows) * settingsRow + listBottom + 1
     }
 }
 
@@ -395,7 +395,7 @@ final class IslandController: NSObject, ObservableObject {
         return usageHeight + banner + search + listHeight + noteLine
     }
 
-    var settingsPageHeight: CGFloat { IslandLayout.settingsHeight }
+    var settingsPageHeight: CGFloat { IslandLayout.settingsHeight(onlyCmux: sessions.onlyCmux) }
 
     var islandSize: CGSize {
         switch mode {
