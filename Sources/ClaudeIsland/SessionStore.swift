@@ -23,6 +23,8 @@ struct ClaudeSession: Identifiable, Equatable {
     let windowID: Int?
     let tabIndex: Int?
     let desktop: Int?
+    /// The cmux terminal it runs in, for chats started in cmux.
+    let cmuxSurface: String?
     /// Idle, seen, and finished within the last six hours: something you're in the middle of.
     /// (Finished sessions you haven't opened yet are "done" instead, however long ago.)
     let recent: Bool
@@ -30,6 +32,7 @@ struct ClaudeSession: Identifiable, Equatable {
     var id: Int32 { pid }
     var isActive: Bool { state == .running || state == .needsYou }
     var inTmux: Bool { tmuxSession != nil }
+    var inCmux: Bool { cmuxSurface != nil }
     var onScreen: Bool { windowID != nil }
 }
 
@@ -46,8 +49,8 @@ struct SessionEvent: Identifiable, Equatable {
     let desktop: Int?
 }
 
-/// Merges the claude binary's session registry with tmux and Terminal's windows, and turns status
-/// changes into "finished" / "needs you" events.
+/// Merges the claude binary's session registry with tmux, Terminal's windows and cmux's terminals,
+/// and turns status changes into "finished" / "needs you" events.
 final class SessionStore: ObservableObject {
     /// A session that finished within this long counts as recent rather than idle.
     static let recentWindow: TimeInterval = 6 * 60 * 60
@@ -65,6 +68,7 @@ final class SessionStore: ObservableObject {
     private var windows: [TerminalWindow] = []
     private var panes: [Tmux.Pane] = []
     private var clients: [Tmux.Client] = []
+    private var cmuxTerminals: [CmuxTerminal] = []
     private var desktopOf: [Int: Int] = [:]
     private var lastStatus: [Int32: SessionStatus] = [:]
     private var busySince: [Int32: Date] = [:]
@@ -120,15 +124,19 @@ final class SessionStore: ObservableObject {
         guard !terminalBusy else { return }
         lastTerminalRefresh = Date()
         terminalBusy = true
+        // cmux is only asked when a chat runs in it, so nobody else is asked to let the island control it.
+        let readCmux = entries.contains { $0.cmuxSurface != nil }
         terminalQueue.async {
             let result = Result { try TerminalBridge.listWindows() }
             let panes = Tmux.panes()
             let clients = Tmux.clients()
             let desktops = (try? result.get()).map { SkyLight.desktopNumbers(for: $0.map(\.id)) } ?? [:]
+            let cmux = readCmux ? Result { try Cmux.listTerminals() } : .success([])
             DispatchQueue.main.async {
                 self.terminalBusy = false
                 self.panes = panes
                 self.clients = clients
+                if case .success(let list) = cmux { self.cmuxTerminals = list }
                 switch result {
                 case .success(let list):
                     self.windows = list
@@ -138,6 +146,8 @@ final class SessionStore: ObservableObject {
                 case .failure(let error):
                     self.terminalProblem = "\(error)"
                 }
+                if case .failure(let error) = cmux, self.terminalProblem == nil { self.terminalProblem = "\(error)" }
+                self.markFrontCmuxSeen()
                 self.rebuild()
                 done?()
             }
@@ -194,11 +204,23 @@ final class SessionStore: ObservableObject {
         return panes.first { $0.session == client.session }?.tty
     }
 
+    /// The cmux terminal you're typing into, when cmux is the frontmost app.
+    private var frontCmuxSurface: String? {
+        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Cmux.bundleID else { return nil }
+        return cmuxTerminals.first(where: \.inFront)?.id
+    }
+
     /// True when this session is in the tab right in front of the user.
     private func isFrontmost(_ e: RegistryEntry) -> Bool {
+        if let surface = e.cmuxSurface { return surface == frontCmuxSurface }
         guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == TerminalBridge.bundleID,
               let tab = windows.first?.tabs.first(where: \.selected) else { return false }
         return e.tty != nil && claudeTTY(shownIn: tab.tty) == e.tty
+    }
+
+    private func markFrontCmuxSeen() {
+        guard let surface = frontCmuxSurface else { return }
+        for e in entries where e.cmuxSurface == surface { unseen.remove(e.pid) }
     }
 
     private func markFrontmostSeen() {
@@ -214,10 +236,13 @@ final class SessionStore: ObservableObject {
             for (i, t) in w.tabs.enumerated() { tabByTTY[t.tty] = (w, i + 1, t.title) }
         }
         let paneByTTY = Dictionary(panes.map { ($0.tty, $0) }, uniquingKeysWith: { a, _ in a })
+        let cmuxByID = Dictionary(cmuxTerminals.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let home = FileManager.default.homeDirectoryForCurrentUser.path
 
         let list = entries.map { e -> ClaudeSession in
             let pane = e.tty.flatMap { paneByTTY[$0] }
+            // A workspace with just this chat in it carries the chat's title in cmux's sidebar.
+            let cmuxTitle = e.cmuxSurface.flatMap { cmuxByID[$0] }.flatMap { $0.workspaceTerminals == 1 ? $0.workspaceName : nil }
             // A tmux session is on screen in the frontmost Terminal window whose client shows it.
             let shownIn = pane.flatMap { pane in
                 clients.filter { $0.session == pane.session }.compactMap { tabByTTY[$0.tty] }.min { $0.window.zIndex < $1.window.zIndex }
@@ -232,7 +257,7 @@ final class SessionStore: ObservableObject {
                 pid: e.pid,
                 sessionId: e.sessionId,
                 cwd: e.cwd,
-                name: displayName(e, title: pane?.title ?? shownIn?.title),
+                name: displayName(e, title: pane?.title ?? shownIn?.title ?? cmuxTitle),
                 folder: e.cwd == home ? "~" : (e.cwd as NSString).lastPathComponent,
                 state: state,
                 waitingFor: e.waitingFor,
@@ -243,6 +268,7 @@ final class SessionStore: ObservableObject {
                 windowID: shownIn?.window.id,
                 tabIndex: shownIn?.tab,
                 desktop: shownIn.flatMap { desktopOf[$0.window.id] },
+                cmuxSurface: e.cmuxSurface,
                 recent: state == .idle && Date().timeIntervalSince(e.statusSince) < SessionStore.recentWindow
             )
         }
@@ -251,6 +277,16 @@ final class SessionStore: ObservableObject {
             return a.isActive ? a.since < b.since : a.since > b.since
         }
         if sorted != sessions { sessions = sorted }
+        if let newest = entries.max(by: { $0.started < $1.started }), (newest.cmuxSurface != nil) != Self.newChatsInCmux {
+            Self.newChatsInCmux = newest.cmuxSurface != nil
+        }
+    }
+
+    /// New chats open where your newest chat runs: in cmux or in Terminal. Saved, so it still holds
+    /// when no chat is open.
+    static var newChatsInCmux: Bool {
+        get { Settings.defaults.bool(forKey: "newChatsInCmux") }
+        set { Settings.defaults.set(newValue, forKey: "newChatsInCmux") }
     }
 
     /// Names the user picked win; otherwise Claude's own title ("✳ Fix the login bug").

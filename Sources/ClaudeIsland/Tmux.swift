@@ -53,7 +53,9 @@ enum Tmux {
         let message = err.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            log(args, "exit \(process.terminationStatus): " + String(decoding: message, as: UTF8.self))
+            let text = String(decoding: message, as: UTF8.self)
+            // No server just means no chat runs in tmux (say, they're all in cmux): nothing went wrong.
+            if !text.hasPrefix("no server running") { log(args, "exit \(process.terminationStatus): " + text) }
             return nil
         }
         return String(decoding: data, as: UTF8.self)

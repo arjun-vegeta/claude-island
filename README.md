@@ -9,7 +9,7 @@ A Dynamic Island for Claude Code on a MacBook with a notch. Hover over the notch
 - **Your plan usage**: the 5-hour and weekly limits, the same numbers as `/usage`. It shows the last known numbers when you're offline.
 - **A pop-up and a chime** when a chat finishes or needs you.
 - **Reorganise**: running chats first, laid out 2, 4 or 6 to a desktop. Chats without a window get one.
-- **New chat**: a new Terminal window with Claude Code, placed in the next free spot.
+- **New chat**: a new Terminal window with Claude Code, placed in the next free spot. If you use cmux, a new cmux tab instead.
 - **Type to search** while the island is open. Press Enter to open the top match, or Esc to clear the search.
 - **Clawd**, the Claude Code mascot, hangs around the notch.
 - **Settings**: click the gear at the bottom left.
@@ -36,12 +36,13 @@ To start it automatically, turn on **Open at login** in its settings.
 ## Permissions macOS will ask for
 
 - **Terminal (Automation):** to see your Terminal windows and bring them forward. Asked the first time it starts.
+- **cmux (Automation):** only if you run Claude Code in cmux, to find each chat's tab and switch to it.
 - **Accessibility:** only so Reorganise can switch to an empty desktop for you. Asked the first time it needs to.
 - **Folders such as Desktop and Downloads:** the `claude` process that checks your plan usage can trigger these. Allowing once is enough.
 
 ## Good to know
 
-- **Only Terminal.app is supported.**
+- **Terminal.app and [cmux](https://cmux.com) are supported.** In cmux, `claude` runs as usual (not in tmux) and each chat keeps its own cmux tab. Clicking a chat switches to its tab. Reorganise only arranges Terminal windows, so it's hidden when all your chats are in cmux.
 - **Each chat runs inside tmux**, a tool that keeps it running apart from its window. That's how Reorganise can swap chats between windows instantly. You won't see tmux: there's no status bar, and your keys go straight to Claude.
 - **Closing a window ends its chat**, just like before.
 - **Scrolling:** after scrolling up, scroll back down or press Esc to get back to the prompt.

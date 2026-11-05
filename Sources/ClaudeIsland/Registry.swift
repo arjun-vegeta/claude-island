@@ -1,5 +1,5 @@
+import AppKit
 import Darwin
-import Foundation
 
 enum SessionStatus: String {
     case busy, waiting, idle
@@ -16,6 +16,10 @@ struct RegistryEntry {
     let waitingFor: String?
     let statusSince: Date
     let tty: String?
+    /// When the claude process started.
+    let started: Date
+    /// The cmux terminal it runs in (CMUX_SURFACE_ID), when cmux started its shell.
+    let cmuxSurface: String?
 }
 
 enum Registry {
@@ -43,9 +47,10 @@ enum Registry {
                   let proc = processInfo(pid) else { continue }
 
             // A stale file whose pid was reused by another process has a different start time.
+            let started = processStart(proc)
             if let start = obj["procStart"] as? String,
                let date = procStartFormat.date(from: start.split(separator: " ").joined(separator: " ")),
-               abs(processStart(proc).timeIntervalSince(date)) > 5 { continue }
+               abs(started.timeIntervalSince(date)) > 5 { continue }
 
             let millis = { (key: String) in (obj[key] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) } }
             entries.append(RegistryEntry(
@@ -57,10 +62,66 @@ enum Registry {
                 status: SessionStatus(rawValue: obj["status"] as? String ?? "") ?? .idle,
                 waitingFor: obj["waitingFor"] as? String,
                 statusSince: millis("statusUpdatedAt") ?? millis("updatedAt") ?? Date(),
-                tty: terminal(of: proc)
+                tty: terminal(of: proc),
+                started: started,
+                cmuxSurface: cmuxSurface(pid, started: started)
             ))
         }
+        cmuxSurfaces = cmuxSurfaces.filter { key, _ in entries.contains { $0.pid == key.pid } }
         return entries
+    }
+
+    private struct ProcessKey: Hashable {
+        let pid: pid_t
+        let started: Date
+    }
+
+    /// A process's environment and parents never change, so each is looked up once.
+    private static var cmuxSurfaces: [ProcessKey: String?] = [:]
+
+    /// The cmux terminal a claude process runs in: CMUX_SURFACE_ID from its environment, when cmux
+    /// is one of its parents. (A shell started elsewhere, a tmux server say, could have inherited it.)
+    private static func cmuxSurface(_ pid: pid_t, started: Date) -> String? {
+        let key = ProcessKey(pid: pid, started: started)
+        if let cached = cmuxSurfaces[key] { return cached }
+        let cmuxPids = Set(NSRunningApplication.runningApplications(withBundleIdentifier: Cmux.bundleID).map(\.processIdentifier))
+        var surface: String?
+        if !cmuxPids.isEmpty, let id = environment(of: pid, key: "CMUX_SURFACE_ID"), !id.isEmpty {
+            var parent = processInfo(pid)?.kp_eproc.e_ppid ?? 0
+            for _ in 0..<16 where parent > 1 {
+                if cmuxPids.contains(parent) { surface = id; break }
+                parent = processInfo(parent)?.kp_eproc.e_ppid ?? 0
+            }
+        }
+        // Not cached while cmux isn't running: its chats are gone then, and a pid could come back.
+        if !cmuxPids.isEmpty { cmuxSurfaces[key] = .some(surface) }
+        return surface
+    }
+
+    /// One variable from another process's environment (KERN_PROCARGS2: argc, the executable path,
+    /// the arguments, then the environment, each NUL-terminated). Works for the user's own processes.
+    private static func environment(of pid: pid_t, key: String) -> String? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 4 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0, size > 4 else { return nil }
+        let argc = buffer.withUnsafeBytes { Int($0.load(as: Int32.self)) }
+        var i = 4
+        func skipString() { while i < size, buffer[i] != 0 { i += 1 } }
+        skipString()                                      // executable path
+        while i < size, buffer[i] == 0 { i += 1 }         // its padding
+        for _ in 0..<argc { skipString(); i += 1 }        // arguments
+        let prefix = Array((key + "=").utf8)
+        while i < size, buffer[i] != 0 {
+            let start = i
+            skipString()
+            if i - start >= prefix.count, Array(buffer[start..<start + prefix.count]) == prefix {
+                return String(decoding: buffer[(start + prefix.count)..<i], as: UTF8.self)
+            }
+            i += 1
+        }
+        return nil
     }
 
     private static func processInfo(_ pid: pid_t) -> kinfo_proc? {

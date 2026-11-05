@@ -663,7 +663,9 @@ final class IslandController: NSObject, ObservableObject {
         collapse()
         if case .toast = mode { mode = .collapsed }
         DispatchQueue.global(qos: .userInitiated).async {
-            if let window = session.windowID {
+            if let surface = session.cmuxSurface {
+                try? Cmux.focus(terminal: surface)
+            } else if let window = session.windowID {
                 try? TerminalBridge.focus(windowID: window, tab: session.tabIndex)
             } else if let tmux = session.tmuxSession {
                 // Not in any window right now: open one on this desktop.
