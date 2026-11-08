@@ -172,7 +172,7 @@ struct ExpandedView: View {
             header(list)
 
             if controller.showingSettings {
-                SettingsPage(controller: controller, usage: usage, settings: settings, updater: updater)
+                SettingsPage(controller: controller, usage: usage, settings: settings, updater: updater, onlyCmux: sessions.onlyCmux)
                     .frame(height: controller.settingsPageHeight, alignment: .top)
                 Rectangle().fill(Color.hairline).frame(height: 1).padding(.horizontal, 20)
                 footer.frame(height: IslandLayout.footerHeight - 1)
@@ -414,15 +414,18 @@ struct ExpandedView: View {
 
                 Spacer(minLength: 4)
 
-                Button(action: controller.reorganise) {
-                    HStack(spacing: 6) {
-                        Image(systemName: Settings.layoutSymbol(settings.windowsPerDesktop))
-                        Text("Reorganise")
+                // Reorganise arranges Terminal windows; cmux keeps its chats in its own sidebar.
+                if !sessions.onlyCmux {
+                    Button(action: controller.reorganise) {
+                        HStack(spacing: 6) {
+                            Image(systemName: Settings.layoutSymbol(settings.windowsPerDesktop))
+                            Text("Reorganise")
+                        }
                     }
+                    .buttonStyle(PillStyle(filled: false, hovered: controller.hovered == "reorganise"))
+                    .hoverTarget("reorganise")
+                    .help("Running sessions first, \(settings.windowsPerDesktop) per desktop, idle ones after")
                 }
-                .buttonStyle(PillStyle(filled: false, hovered: controller.hovered == "reorganise"))
-                .hoverTarget("reorganise")
-                .help("Running sessions first, \(settings.windowsPerDesktop) per desktop, idle ones after")
 
                 Button(action: controller.newChat) {
                     HStack(spacing: 6) {
@@ -432,11 +435,13 @@ struct ExpandedView: View {
                 }
                 .buttonStyle(PillStyle(filled: true, hovered: controller.hovered == "new-chat"))
                 .hoverTarget("new-chat")
-                .help("Open a new Terminal window with Claude Code on this desktop")
+                .help(SessionStore.newChatsInCmux && Cmux.installed ? "Open a new cmux tab with Claude Code"
+                                                                     : "Open a new Terminal window with Claude Code on this desktop")
             }
             .padding(.horizontal, 18)
         }
     }
+
 }
 
 /// What you've typed, with a blinking caret and how many sessions match.

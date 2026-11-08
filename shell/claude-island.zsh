@@ -1,9 +1,10 @@
 # Claude Island: interactive `claude` runs inside tmux, so the notch app can rearrange sessions.
+# In cmux it runs as usual: cmux keeps each chat in its own workspace and the island finds it there.
 # Sourced from ~/.zshrc. Remove that line to go back to plain claude.
 _claude_island_dir=${${(%):-%x}:A:h}
 
 claude() {
-  if [[ -z $TMUX && -t 0 && -t 1 ]] && ! _claude_island_passthrough "$@"; then
+  if [[ -z $TMUX && -z $CMUX_SURFACE_ID && -t 0 && -t 1 ]] && ! _claude_island_passthrough "$@"; then
     $_claude_island_dir/claude-tmux "$@"
   else
     command claude "$@"

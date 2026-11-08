@@ -54,7 +54,7 @@ cat > "build/$APP/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Claude Island reads your Terminal windows to show where each Claude Code session is, and moves them when you press Reorganise.</string>
+    <string>Claude Island reads your Terminal and cmux windows to show where each Claude Code session is, takes you to a session when you click it, and moves Terminal windows when you press Reorganise.</string>
 </dict>
 </plist>
 PLIST

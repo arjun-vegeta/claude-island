@@ -308,7 +308,7 @@ enum Reorganizer {
         }
 
         var notes: [String] = []
-        let notInTmux = sessions.filter { !$0.inTmux }.count
+        let notInTmux = sessions.filter { !$0.inTmux && !$0.inCmux }.count
         if notInTmux > 0 { notes.append("\(notInTmux) session\(notInTmux == 1 ? " isn't" : "s aren't") in tmux yet") }
         let hidden = ranked.count - assignments.count
         if hidden > 0 { notes.append("\(hidden) more than there are windows") }
@@ -328,8 +328,14 @@ enum Reorganizer {
     }
 
     /// Opens a new Terminal window on this desktop running Claude Code inside tmux. If the desktop has
-    /// room in its layout, the new window takes the next free slot. Blocking: call off the main thread.
+    /// room in its layout, the new window takes the next free slot. When your newest chat runs in cmux,
+    /// opens a cmux workspace instead. Blocking: call off the main thread.
     static func openNewChat(screens: [ScreenInfo], capacity: Int) throws {
+        if SessionStore.newChatsInCmux, Cmux.installed {
+            // Plain claude: in cmux, Claude Island's shell setup leaves it out of tmux.
+            try Cmux.newWorkspace(running: "claude")
+            return
+        }
         let active = SkyLight.activeSpace()
         let here = (try? TerminalBridge.listWindows())?.filter {
             !$0.miniaturized && SkyLight.spaces(forWindow: CGWindowID($0.id)) == [active]
