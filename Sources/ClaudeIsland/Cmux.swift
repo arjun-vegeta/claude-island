@@ -76,8 +76,9 @@ enum Cmux {
         """)
     }
 
-    /// Opens a new workspace in cmux's front window (or a new window) and runs `command` in its shell,
-    /// as if typed. Text sent the moment the workspace opens can be lost, so it waits a little first;
+    /// Opens a new workspace in cmux's front window (or a new window), switches to it and runs `command`
+    /// in its shell, as if typed. `new tab` leaves the current workspace selected, so it focuses the new
+    /// terminal. Text sent the moment the workspace opens can be lost, so it waits a little first;
     /// pasted text doesn't run by itself, so Return is sent separately.
     static func newWorkspace(running command: String) throws {
         if app == nil {
@@ -98,6 +99,7 @@ enum Cmux {
                 set t to new tab in front window
             end if
             set x to focused terminal of t
+            focus x
             delay 0.6
             input text "\(escape(command))" to x
             perform action "text:\\\\r" on x
